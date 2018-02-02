@@ -1,0 +1,755 @@
+{
+  "EDITOR_STATE": {
+    "allProjectFiles": {
+      "5e54d49e-8477-4f74-b2fb-883f1c69b7b8": {
+        "id": "5e54d49e-8477-4f74-b2fb-883f1c69b7b8",
+        "parent": null,
+        "name": "s3-thumbnail-generator",
+        "type": "DIRECTORY",
+        "isDirectory": true,
+        "children": [
+          "702971c8-fa81-4c9f-9935-f46156b62d1d"
+        ],
+        "isRemovable": false,
+        "filePath": "s3-thumbnail-generator"
+      },
+      "702971c8-fa81-4c9f-9935-f46156b62d1d": {
+        "id": "702971c8-fa81-4c9f-9935-f46156b62d1d",
+        "parent": "5e54d49e-8477-4f74-b2fb-883f1c69b7b8",
+        "name": "handler.js",
+        "type": "LAMBDA_FILE",
+        "isDirectory": false,
+        "children": [],
+        "isRemovable": true,
+        "filePath": "s3-thumbnail-generator/handler.js",
+        "code": "/*\n * Original source: https://docs.aws.amazon.com/lambda/latest/dg/with-s3-example-deployment-pkg.html\n * Retrieved on:    2018-01-19\n */\n\n// Dependencies\nlet AWS = require('aws-sdk');\nlet async = require('async');\nlet util = require('util');\n// Enable ImageMagick integration.\nlet gm = require('gm').subClass({ imageMagick: true });\n\n// Get reference to S3 client.\nconst s3 = new AWS.S3();\n\n// Constants\nconst MAX_WIDTH = 100;\nconst MAX_HEIGHT = 100;\n\nexports.handler = function (event, context, callback) {\n\n    // Read options from the event.\n    console.log(\"Reading options from event:\\n\", util.inspect(event, { depth: 5 }));\n\n    // Object key may have spaces or unicode non-ASCII characters.\n    let srcKey = decodeURIComponent(event.Records[0].s3.object.key.replace(/\\+/g, \" \"));\n    let dstKey = \"thumb-\" + srcKey;\n\n    // Infer the image type.\n    let typeMatch = srcKey.match(/\\.([^.]*)$/);\n    if (!typeMatch) {\n        callback(\"Could not determine the image type.\");\n        return;\n    }\n    let imageType = typeMatch[1];\n    if (imageType != \"jpg\" && imageType != \"png\") {\n        callback(`Unsupported image type: ${imageType}`);\n        return;\n    }\n\n    // Download the image from S3, transform, and upload under new key.\n    async.waterfall([\n            function download(next) {\n                // Download the image from S3 into a buffer.\n                s3.getObject({\n                    'Bucket': \"sigma-s3-thumb-input\",\n                    'Key': srcKey\n                }, next);\n            },\n            function transform(response, next) {\n                gm(response.Body).size(function (err, size) {\n                    // Infer the scaling factor to avoid stretching the image unnaturally.\n                    let scalingFactor = Math.min(\n                        MAX_WIDTH / size.width,\n                        MAX_HEIGHT / size.height\n                    );\n                    let width = scalingFactor * size.width;\n                    let height = scalingFactor * size.height;\n\n                    // Transform the image buffer in memory.\n                    this.resize(width, height)\n                        .toBuffer(imageType, function (err, buffer) {\n                            if (err) {\n                                next(err);\n                            } else {\n                                next(null, response.ContentType, buffer);\n                            }\n                        });\n                });\n            },\n            function upload(contentType, data, next) {\n                // Stream the transformed image to a different S3 bucket.\n                s3.putObject({\n                    \"Body\": data,\n                    \"Bucket\": \"sigma-s3-thumb-output\",\n                    \"Key\": dstKey,\n                    \"ACL\": \"public-read\",\n                    \"Metadata\": {\n                        \"Content-Type\": contentType\n                    }\n                }, next);\n            }\n        ], function (err) {\n            let msg;\n            if (err) {\n                msg = `Unable to resize sigma-s3-thumb-input/${srcKey} and upload to sigma-s3-thumb-output/${dstKey} due to an error: ${err}`;\n                console.error(msg);\n            } else {\n                msg = `Successfully resized sigma-s3-thumb-input/${srcKey} and uploaded to sigma-s3-thumb-output/${dstKey}`;\n                console.log(msg);\n            }\n            callback(err, msg);\n        }\n    );\n};\n",
+        "resources": [
+          "s3sigmaS3ThumbInput",
+          "s3sigmaS3ThumbInput",
+          "s3apigKineProxy",
+          "s3sigmaS3ThumbInput",
+          "s3sigmaS3ThumbOutput",
+          "s3sigmaS3ThumbOutput",
+          "s3sigmaS3ThumbOutput",
+          "s3sigmaS3ThumbInput",
+          "s3sigmaS3ThumbOutput",
+          "s3sigmaS3ThumbOutput",
+          "s3sigmaS3ThumbInput",
+          "s3sigmaS3ThumbInput",
+          "s3sigmaS3ThumbOutput"
+        ],
+        "triggers": [
+          {
+            "resourceName": "s3sigmaS3ThumbInput",
+            "config": {
+              "type": "s3:ObjectCreated:*",
+              "keyPrefix": "",
+              "keySuffix": ".png"
+            }
+          },
+          {
+            "resourceName": "s3sigmaS3ThumbInput",
+            "config": {
+              "type": "s3:ObjectCreated:*",
+              "keyPrefix": "",
+              "keySuffix": ".jpg"
+            }
+          }
+        ],
+        "version": 92
+      }
+    },
+    "rootNode": "5e54d49e-8477-4f74-b2fb-883f1c69b7b8",
+    "openFiles": [
+      "702971c8-fa81-4c9f-9935-f46156b62d1d"
+    ],
+    "currentFileId": "702971c8-fa81-4c9f-9935-f46156b62d1d",
+    "resources": {
+      "s3sigmaS3ThumbInput": {
+        "name": "s3sigmaS3ThumbInput",
+        "type": "S3",
+        "config": {
+          "mode": 0,
+          "bucket": {
+            "region": "us-east-1",
+            "name": "sigma-s3-thumb-input"
+          }
+        },
+        "globallyEditable": false,
+        "usage": {
+          "702971c8-fa81-4c9f-9935-f46156b62d1d": {
+            "operations": {
+              "getObject": [
+                {
+                  "Bucket": "sigma-s3-thumb-input",
+                  "Key": "@{srcKey}"
+                }
+              ]
+            },
+            "occurrence": 3,
+            "triggers": [
+              {
+                "type": "s3:ObjectCreated:*",
+                "keyPrefix": "",
+                "keySuffix": ".png"
+              },
+              {
+                "type": "s3:ObjectCreated:*",
+                "keyPrefix": "",
+                "keySuffix": ".jpg"
+              }
+            ]
+          }
+        }
+      },
+      "s3sigmaS3ThumbOutput": {
+        "name": "s3sigmaS3ThumbOutput",
+        "type": "S3",
+        "config": {
+          "mode": 0,
+          "bucket": {
+            "region": "us-east-1",
+            "name": "sigma-s3-thumb-output"
+          }
+        },
+        "globallyEditable": false,
+        "usage": {
+          "702971c8-fa81-4c9f-9935-f46156b62d1d": {
+            "operations": {
+              "putObject": [
+                {
+                  "Body": "@{data}",
+                  "Bucket": "sigma-s3-thumb-output",
+                  "Key": "@{dstKey}",
+                  "ACL": "public-read",
+                  "Metadata": {
+                    "Content-Type": "@{contentType}"
+                  }
+                }
+              ]
+            },
+            "occurrence": 1,
+            "triggers": []
+          }
+        }
+      }
+    },
+    "packageJSON": {
+      "dependencies": {
+        "aws-sdk": {
+          "name": "aws-sdk",
+          "version": "2.176.0",
+          "notRemovable": true
+        },
+        "slappforge-sdk": {
+          "name": "@slappforge/slappforge-sdk",
+          "version": "0.0.3",
+          "notRemovable": true
+        },
+        "async": {
+          "name": "async",
+          "concatenatedName": "async",
+          "downloadsLast30Days": 44538332,
+          "downloadsRatio": 0.3442669883134104,
+          "humanDownloadsLast30Days": "44.5m",
+          "popular": true,
+          "version": "2.6.0",
+          "versions": {
+            "0.1.0": "2010-12-19T16:41:51.765Z",
+            "0.1.1": "2010-12-19T16:41:51.765Z",
+            "0.1.2": "2010-12-19T16:41:51.765Z",
+            "0.1.3": "2010-12-19T16:41:51.765Z",
+            "0.1.4": "2010-12-19T16:41:51.765Z",
+            "0.1.5": "2010-12-19T16:41:51.765Z",
+            "0.1.6": "2010-12-19T16:41:51.765Z",
+            "0.1.7": "2010-12-19T16:41:51.765Z",
+            "0.1.8": "2011-01-18T09:56:53.975Z",
+            "0.1.9": "2011-04-27T20:48:08.634Z",
+            "0.1.10": "2011-09-19T04:40:01.573Z",
+            "0.1.11": "2011-10-14T17:07:28.752Z",
+            "0.1.12": "2011-10-14T17:19:19.452Z",
+            "0.1.13": "2011-10-29T22:33:52.448Z",
+            "0.1.14": "2011-10-29T22:40:14.486Z",
+            "0.1.15": "2011-11-01T23:05:01.415Z",
+            "0.1.16": "2012-02-13T04:56:23.926Z",
+            "0.1.17": "2012-02-27T02:40:58.997Z",
+            "0.1.18": "2012-02-27T16:51:02.109Z",
+            "0.1.19": "2012-05-24T06:51:06.109Z",
+            "0.1.20": "2012-05-24T06:53:39.997Z",
+            "0.1.21": "2012-05-24T07:16:16.753Z",
+            "0.1.22": "2012-05-30T18:26:44.821Z",
+            "0.1.23": "2012-10-04T13:52:08.947Z",
+            "0.2.0": "2013-02-04T11:38:08.943Z",
+            "0.2.1": "2013-02-04T11:52:34.110Z",
+            "0.2.2": "2013-02-05T15:55:23.202Z",
+            "0.2.3": "2013-02-06T12:48:37.415Z",
+            "0.2.4": "2013-02-07T17:26:22.236Z",
+            "0.2.5": "2013-02-10T22:42:00.162Z",
+            "0.2.6": "2013-03-03T11:29:52.674Z",
+            "0.2.7": "2013-04-09T20:50:04.712Z",
+            "0.2.8": "2013-05-01T10:04:07.430Z",
+            "0.2.9": "2013-05-28T07:50:48.795Z",
+            "0.2.10": "2014-01-23T16:23:57.271Z",
+            "0.3.0": "2014-03-28T17:16:05.640Z",
+            "0.4.0": "2014-03-28T17:25:12.580Z",
+            "0.4.1": "2014-03-30T11:42:54.298Z",
+            "0.5.0": "2014-03-30T11:46:31.381Z",
+            "0.6.0": "2014-03-30T12:04:32.275Z",
+            "0.6.1": "2014-03-30T20:35:32.550Z",
+            "0.6.2": "2014-03-31T09:56:20.294Z",
+            "0.7.0": "2014-04-07T09:07:34.303Z",
+            "0.8.0": "2014-04-29T15:26:34.028Z",
+            "0.9.0": "2014-05-16T10:20:22.247Z",
+            "0.9.2": "2015-05-19T08:45:57.198Z",
+            "1.0.0": "2015-05-20T23:40:05.710Z",
+            "1.1.0": "2015-06-01T07:59:05.989Z",
+            "1.2.0": "2015-06-02T20:56:04.526Z",
+            "1.1.1": "2015-06-08T01:26:56.285Z",
+            "1.2.1": "2015-06-08T01:43:33.907Z",
+            "1.3.0": "2015-06-29T16:14:01.899Z",
+            "1.4.0": "2015-07-20T02:11:50.089Z",
+            "1.4.1": "2015-08-07T21:08:08.172Z",
+            "1.4.2": "2015-08-09T18:10:22.399Z",
+            "1.5.0": "2015-10-26T01:41:14.220Z",
+            "1.5.1": "2016-01-02T23:38:22.435Z",
+            "1.5.2": "2016-01-08T00:03:32.998Z",
+            "2.0.0-alpha.0": "2016-03-18T23:46:58.334Z",
+            "2.0.0-rc.1": "2016-03-18T23:52:37.386Z",
+            "2.0.0-rc.2": "2016-03-24T03:39:49.460Z",
+            "2.0.0-rc.3": "2016-04-07T21:11:27.200Z",
+            "2.0.0-rc.4": "2016-05-05T23:30:00.507Z",
+            "2.0.0-rc.5": "2016-05-16T20:15:02.032Z",
+            "2.0.0-rc.6": "2016-06-07T21:13:20.130Z",
+            "2.0.0": "2016-07-13T00:23:10.577Z",
+            "2.0.1": "2016-07-22T20:37:03.855Z",
+            "2.1.0": "2016-10-12T18:22:41.697Z",
+            "2.1.1": "2016-10-12T18:58:53.479Z",
+            "2.1.2": "2016-10-16T22:46:37.667Z",
+            "2.1.4": "2016-11-22T19:16:50.375Z",
+            "2.1.5": "2017-02-19T01:31:00.277Z",
+            "2.2.0": "2017-03-25T20:39:42.923Z",
+            "2.3.0": "2017-04-02T22:55:24.664Z",
+            "2.4.0": "2017-04-29T23:23:32.659Z",
+            "2.4.1": "2017-05-22T03:57:15.218Z",
+            "2.5.0": "2017-06-25T23:42:02.387Z",
+            "2.6.0": "2017-11-07T02:45:53.140Z"
+          },
+          "tags": {
+            "latest": "2.6.0"
+          },
+          "description": "Higher-order functions and common patterns for asynchronous code",
+          "dependencies": {
+            "lodash": "^4.14.0"
+          },
+          "devDependencies": {
+            "babel-cli": "^6.24.0",
+            "babel-core": "^6.24.0",
+            "babel-plugin-add-module-exports": "^0.2.1",
+            "babel-plugin-istanbul": "^2.0.1",
+            "babel-plugin-transform-es2015-modules-commonjs": "^6.3.16",
+            "babel-preset-es2015": "^6.3.13",
+            "babel-preset-es2017": "^6.22.0",
+            "babelify": "^7.2.0",
+            "benchmark": "^2.1.1",
+            "bluebird": "^3.4.6",
+            "chai": "^3.1.0",
+            "cheerio": "^0.22.0",
+            "coveralls": "^2.11.2",
+            "es6-promise": "^2.3.0",
+            "eslint": "^2.13.1",
+            "fs-extra": "^0.26.7",
+            "gh-pages-deploy": "^0.4.2",
+            "jsdoc": "^3.4.0",
+            "karma": "^1.3.0",
+            "karma-browserify": "^5.1.0",
+            "karma-firefox-launcher": "^1.0.0",
+            "karma-mocha": "^1.2.0",
+            "karma-mocha-reporter": "^2.2.0",
+            "mocha": "^3.1.2",
+            "native-promise-only": "^0.8.0-a",
+            "nyc": "^7.0.0",
+            "recursive-readdir": "^1.3.0",
+            "rimraf": "^2.5.0",
+            "rollup": "^0.36.3",
+            "rollup-plugin-node-resolve": "^2.0.0",
+            "rollup-plugin-npm": "^2.0.0",
+            "rsvp": "^3.0.18",
+            "semver": "^4.3.6",
+            "uglify-js": "~2.7.3",
+            "vinyl-buffer": "^1.0.0",
+            "vinyl-source-stream": "^1.1.0",
+            "watchify": "^3.7.0",
+            "yargs": "~3.9.1"
+          },
+          "repository": {
+            "url": "https://github.com/caolan/async",
+            "project": "async",
+            "user": "caolan",
+            "host": "github.com",
+            "path": "",
+            "branch": "master"
+          },
+          "githubRepo": {
+            "user": "caolan",
+            "project": "async",
+            "path": "",
+            "head": "master"
+          },
+          "gitHead": "master",
+          "readme": "![Async Logo](https://raw.githubusercontent.com/caolan/async/master/logo/async-logo_readme.jpg)\n\n[![Build Status via Travis CI](https://travis-ci.org/caolan/async.svg?branch=master)](https://travis-ci.org/caolan/async)\n[![NPM version](https://img.shields.io/npm/v/async.svg)](https://www.npmjs.com/package/async)\n[![Coverage Status](https://coveralls.io/repos/caolan/async/badge.svg?branch=master)](https://coveralls.io/r/caolan/async?branch=master)\n[![Join the chat at https://gitter.im/caolan/async](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/caolan/async?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)\n[![libhive - Open source examples](https://www.libhive.com/providers/npm/packages/async/examples/badge.svg)](https://www.libhive.com/providers/npm/packages/async)\n[![jsDelivr Hits](https://data.jsdelivr.com/v1/package/npm/async/badge?style=rounded)](https://www.jsdelivr.com/package/npm/async)\n\n\nAsync is a utility module which provides straight-forward, powerful functions for working with [asynchronous JavaScript](http://caolan.github.io/async/global.html). Although originally designed for use with [Node.js](https://nodejs.org/) and installable via `npm install --save async`, it can also be used directly in the browser.\n\nFor Documentation, visit <https://caolan.github.io/async/>\n\n*For Async v1.5.x documentation, go [HERE](https://github.com/caolan/async/blob/v1.5.2/README.md)*\n\n\n```javascript\n// for use with Node-style callbacks...\nvar obj = {dev: \"/dev.json\", test: \"/test.json\", prod: \"/prod.json\"};\nvar configs = {};\n\nasync.forEachOf(obj, (value, key, callback) => {\n    fs.readFile(__dirname + value, \"utf8\", (err, data) => {\n        if (err) return callback(err);\n        try {\n            configs[key] = JSON.parse(data);\n        } catch (e) {\n            return callback(e);\n        }\n        callback();\n    });\n}, err => {\n    if (err) console.error(err.message);\n    // configs is now a map of JSON data\n    doSomethingWith(configs);\n});\n```\n\n```javascript\n// ...or ES2017 async functions\nasync.mapLimit(urls, 5, async function(url) {\n    const response = await fetch(url)\n    return response.body\n}, (err, results) => {\n    if (err) throw err\n    // results is now an array of the response bodies\n    console.log(results)\n})\n```\n",
+          "owner": {
+            "name": "caolan",
+            "avatar": "https://github.com/caolan.png",
+            "link": "https://github.com/caolan"
+          },
+          "deprecated": false,
+          "badPackage": false,
+          "homepage": "https://caolan.github.io/async/",
+          "license": "MIT",
+          "keywords": [
+            "async",
+            "callback",
+            "module",
+            "utility"
+          ],
+          "created": 1292776911765,
+          "modified": 1516331004472,
+          "lastPublisher": {
+            "name": "aearly",
+            "email": "alexander.early@gmail.com",
+            "avatar": "https://gravatar.com/avatar/7ae73452743a32fe508b5d7fab1aab27",
+            "link": "https://www.npmjs.com/~aearly"
+          },
+          "owners": [
+            {
+              "name": "aearly",
+              "email": "alexander.early@gmail.com",
+              "avatar": "https://gravatar.com/avatar/7ae73452743a32fe508b5d7fab1aab27",
+              "link": "https://www.npmjs.com/~aearly"
+            },
+            {
+              "name": "beaugunderson",
+              "email": "beau@beaugunderson.com",
+              "avatar": "https://gravatar.com/avatar/0066561fa3649531b915aba34caff0b8",
+              "link": "https://www.npmjs.com/~beaugunderson"
+            },
+            {
+              "name": "caolan",
+              "email": "caolan.mcmahon@gmail.com",
+              "avatar": "https://gravatar.com/avatar/61eaeeb5a968ca05c5acadd0f0a9fada",
+              "link": "https://www.npmjs.com/~caolan"
+            },
+            {
+              "name": "hargasinski",
+              "email": "argasinski.hubert@gmail.com",
+              "avatar": "https://gravatar.com/avatar/621dcc28705eb41560226fffb9c7ee9b",
+              "link": "https://www.npmjs.com/~hargasinski"
+            },
+            {
+              "name": "megawac",
+              "email": "megawac@gmail.com",
+              "avatar": "https://gravatar.com/avatar/940d0af29bc817075f3eb6aacf40254f",
+              "link": "https://www.npmjs.com/~megawac"
+            }
+          ],
+          "lastCrawl": "2018-01-19T03:06:05.460Z",
+          "popularName": "async",
+          "dependents": 19259,
+          "humanDependents": "19.3k",
+          "changelogFilename": "https://raw.githubusercontent.com/caolan/async/master/CHANGELOG.md",
+          "objectID": "async",
+          "_highlightResult": {
+            "name": {
+              "value": "<em>async</em>",
+              "matchLevel": "full",
+              "fullyHighlighted": true,
+              "matchedWords": [
+                "async"
+              ]
+            },
+            "concatenatedName": {
+              "value": "<em>async</em>",
+              "matchLevel": "full",
+              "fullyHighlighted": true,
+              "matchedWords": [
+                "async"
+              ]
+            },
+            "description": {
+              "value": "Higher-order functions and common patterns for <em>async</em>hronous code",
+              "matchLevel": "full",
+              "fullyHighlighted": false,
+              "matchedWords": [
+                "async"
+              ]
+            },
+            "owner": {
+              "name": {
+                "value": "caolan",
+                "matchLevel": "none",
+                "matchedWords": []
+              }
+            },
+            "keywords": [
+              {
+                "value": "<em>async</em>",
+                "matchLevel": "full",
+                "fullyHighlighted": true,
+                "matchedWords": [
+                  "async"
+                ]
+              },
+              {
+                "value": "callback",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "module",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "utility",
+                "matchLevel": "none",
+                "matchedWords": []
+              }
+            ],
+            "owners": [
+              {
+                "name": {
+                  "value": "aearly",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              },
+              {
+                "name": {
+                  "value": "beaugunderson",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              },
+              {
+                "name": {
+                  "value": "caolan",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              },
+              {
+                "name": {
+                  "value": "hargasinski",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              },
+              {
+                "name": {
+                  "value": "megawac",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              }
+            ],
+            "popularName": {
+              "value": "<em>async</em>",
+              "matchLevel": "full",
+              "fullyHighlighted": true,
+              "matchedWords": [
+                "async"
+              ]
+            }
+          },
+          "types": "// Type definitions for Async 2.0.1\n// Project: https://github.com/caolan/async\n// Definitions by: Boris Yankov <https://github.com/borisyankov>, Arseniy Maximov <https://github.com/kern0>, Joe Herman <https://github.com/Penryn>, Angus Fenying <https://github.com/fenying>, Pascal Martin <https://github.com/pascalmartin>\n// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped\n// TypeScript Version: 2.1\n\nexport as namespace async;\n\nexport interface Dictionary<T> { [key: string]: T; }\n\nexport interface ErrorCallback<T> { (err?: T): void; }\nexport interface AsyncBooleanResultCallback<E> { (err?: E, truthValue?: boolean): void; }\nexport interface AsyncResultCallback<T, E> { (err?: E, result?: T): void; }\nexport interface AsyncResultArrayCallback<T, E> { (err?: E, results?: Array<T | undefined>): void; }\nexport interface AsyncResultObjectCallback<T, E> { (err: E | undefined, results: Dictionary<T | undefined>): void; }\n\nexport interface AsyncFunction<T, E> { (callback: (err?: E, result?: T) => void): void; }\nexport interface AsyncFunctionEx<T, E> { (callback: (err?: E, ...results: T[]) => void): void; }\nexport interface AsyncIterator<T, E> { (item: T, callback: ErrorCallback<E>): void; }\nexport interface AsyncForEachOfIterator<T, E> { (item: T, key: number|string, callback: ErrorCallback<E>): void; }\nexport interface AsyncResultIterator<T, R, E> { (item: T, callback: AsyncResultCallback<R, E>): void; }\nexport interface AsyncMemoIterator<T, R, E> { (memo: R | undefined, item: T, callback: AsyncResultCallback<R, E>): void; }\nexport interface AsyncBooleanIterator<T, E> { (item: T, callback: AsyncBooleanResultCallback<E>): void; }\n\nexport interface AsyncWorker<T, E> { (task: T, callback: ErrorCallback<E>): void; }\nexport interface AsyncVoidFunction<E> { (callback: ErrorCallback<E>): void; }\n\nexport type AsyncAutoTasks<R extends Dictionary<any>, E> = { [K in keyof R]: AsyncAutoTask<R[K], R, E> }\nexport type AsyncAutoTask<R1, R extends Dictionary<any>, E> = AsyncAutoTaskFunctionWithoutDependencies<R1, E> | (keyof R | AsyncAutoTaskFunction<R1, R, E>)[];\nexport interface AsyncAutoTaskFunctionWithoutDependencies<R1, E> { (cb: AsyncResultCallback<R1, E> | ErrorCallback<E>): void; }\nexport interface AsyncAutoTaskFunction<R1, R extends Dictionary<any>, E> { (results: R, cb: AsyncResultCallback<R1, E> | ErrorCallback<E>): void; }\n\nexport interface AsyncQueue<T> {\n    length(): number;\n    started: boolean;\n    running(): number;\n    idle(): boolean;\n    concurrency: number;\n    push<E>(task: T, callback?: ErrorCallback<E>): void;\n    push<R,E>(task: T, callback?: AsyncResultCallback<R, E>): void;\n    push<E>(task: T[], callback?: ErrorCallback<E>): void;\n    unshift<E>(task: T, callback?: ErrorCallback<E>): void;\n    unshift<E>(task: T[], callback?: ErrorCallback<E>): void;\n    saturated: () => any;\n    empty: () => any;\n    drain: () => any;\n    paused: boolean;\n    pause(): void\n    resume(): void;\n    kill(): void;\n    workersList(): {\n        data: T,\n        callback: Function\n    }[];\n    error(error: Error, data: any): void;\n    unsaturated(): void;\n    buffer: number;\n}\n\nexport interface AsyncPriorityQueue<T> {\n    length(): number;\n    concurrency: number;\n    started: boolean;\n    paused: boolean;\n    push<R,E>(task: T, priority: number, callback?: AsyncResultArrayCallback<R, E>): void;\n    push<R,E>(task: T[], priority: number, callback?: AsyncResultArrayCallback<R, E>): void;\n    saturated: () => any;\n    empty: () => any;\n    drain: () => any;\n    running(): number;\n    idle(): boolean;\n    pause(): void;\n    resume(): void;\n    kill(): void;\n    workersList(): {\n        data: T,\n        priority: number,\n        callback: Function\n    }[];\n    error(error: Error, data: any): void;\n    unsaturated(): void;\n    buffer: number;\n}\n\nexport interface AsyncCargo {\n    length(): number;\n    payload?: number;\n    push(task: any, callback? : Function): void;\n    push(task: any[], callback? : Function): void;\n    saturated(): void;\n    empty(): void;\n    drain(): void;\n    idle(): boolean;\n    pause(): void;\n    resume(): void;\n    kill(): void;\n}\n\n// Collections\nexport function each<T, E>(arr: T[] | IterableIterator<T>, iterator: AsyncIterator<T, E>, callback?: ErrorCallback<E>): void;\nexport function each<T, E>(arr: Dictionary<T>, iterator: AsyncIterator<T, E>, callback?: ErrorCallback<E>): void;\nexport const eachSeries: typeof each;\nexport function eachLimit<T, E>(arr: T[] | IterableIterator<T>, limit: number, iterator: AsyncIterator<T, E>, callback?: ErrorCallback<E>): void;\nexport function eachLimit<T, E>(arr: Dictionary<T>, limit: number, iterator: AsyncIterator<T, E>, callback?: ErrorCallback<E>): void;\nexport const forEach: typeof each;\nexport const forEachSeries: typeof each;\nexport const forEachLimit: typeof eachLimit;\nexport function forEachOf<T, E>(obj: T[] | IterableIterator<T>, iterator: AsyncForEachOfIterator<T, E>, callback?: ErrorCallback<E>): void;\nexport function forEachOf<T, E>(obj: Dictionary<T>, iterator: AsyncForEachOfIterator<T, E>, callback?: ErrorCallback<E>): void;\nexport const forEachOfSeries: typeof forEachOf;\nexport function forEachOfLimit<T, E>(obj: T[] | IterableIterator<T>, limit: number, iterator: AsyncForEachOfIterator<T, E>, callback?: ErrorCallback<E>): void;\nexport function forEachOfLimit<T, E>(obj: Dictionary<T>, limit: number, iterator: AsyncForEachOfIterator<T, E>, callback?: ErrorCallback<E>): void;\nexport const eachOf: typeof forEachOf;\nexport const eachOfSeries: typeof forEachOf;\nexport const eachOfLimit: typeof forEachOfLimit;\nexport function map<T, R, E>(arr: T[] | IterableIterator<T>, iterator: AsyncResultIterator<T, R, E>, callback?: AsyncResultArrayCallback<R, E>): void;\nexport function map<T, R, E>(arr: Dictionary<T>, iterator: AsyncResultIterator<T, R, E>, callback?: AsyncResultArrayCallback<R, E>): void;\nexport const mapSeries: typeof map;\nexport function mapLimit<T, R, E>(\n    arr: T[] | Dictionary<T> | IterableIterator<T>,\n    limit: number,\n    iterator: AsyncResultIterator<T, R, E>,\n    callback?: AsyncResultArrayCallback<R, E>\n): void;\nexport function mapValuesLimit<T, R, E>(obj: Dictionary<T>, limit: number, iteratee: (value: T, key: string, callback: AsyncResultCallback<R, E>) => void, callback: AsyncResultObjectCallback<R, E>): void;\nexport function mapValues<T, R, E>(obj: Dictionary<T>, iteratee: (value: T, key: string, callback: AsyncResultCallback<R, E>) => void, callback: AsyncResultObjectCallback<R, E>): void;\nexport const mapValuesSeries: typeof mapValues;\nexport function filter<T, E>(arr: T[] | IterableIterator<T>, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncResultArrayCallback<T, E>): void;\nexport function filter<T, E>(arr: Dictionary<T>, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncResultArrayCallback<T, E>): void;\nexport const filterSeries: typeof filter;\nexport function filterLimit<T, E>(arr: T[] | IterableIterator<T>, limit: number, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncResultArrayCallback<T, E>): void;\nexport function filterLimit<T, E>(arr: Dictionary<T>, limit: number, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncResultArrayCallback<T, E>): void;\nexport const select: typeof filter;\nexport const selectSeries: typeof filter;\nexport const selectLimit: typeof filterLimit;\nexport const reject: typeof filter;\nexport const rejectSeries: typeof filter;\nexport const rejectLimit: typeof filterLimit;\nexport function reduce<T, R, E>(arr: T[] | IterableIterator<T>, memo: R, iterator: AsyncMemoIterator<T, R, E>, callback?: AsyncResultCallback<R, E>): void;\nexport const inject: typeof reduce;\nexport const foldl: typeof reduce;\nexport const reduceRight: typeof reduce;\nexport const foldr: typeof reduce;\nexport function detect<T, E>(arr: T[] | IterableIterator<T>, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncResultCallback<T, E>): void;\nexport function detect<T, E>(arr: Dictionary<T>, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncResultCallback<T, E>): void;\nexport const detectSeries: typeof detect;\nexport function detectLimit<T, E>(arr: T[] | IterableIterator<T>, limit: number, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncResultCallback<T, E>): void;\nexport function detectLimit<T, E>(arr: Dictionary<T>, limit: number, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncResultCallback<T, E>): void;\nexport const find: typeof detect;\nexport const findSeries: typeof detect;\nexport const findLimit: typeof detectLimit;\nexport function sortBy<T, V, E>(arr: T[] | IterableIterator<T>, iterator: AsyncResultIterator<T, V, E>, callback?: AsyncResultArrayCallback<T, E>): void;\nexport function some<T, E>(arr: T[] | IterableIterator<T>, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncBooleanResultCallback<E>): void;\nexport function some<T, E>(arr: Dictionary<T>, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncBooleanResultCallback<E>): void;\nexport const someSeries: typeof some;\nexport function someLimit<T, E>(arr: T[] | IterableIterator<T>, limit: number, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncBooleanResultCallback<E>): void;\nexport function someLimit<T, E>(arr: Dictionary<T>, limit: number, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncBooleanResultCallback<E>): void;\nexport const any: typeof some;\nexport const anySeries: typeof someSeries;\nexport const anyLimit: typeof someLimit;\nexport function every<T, E>(arr: T[] | IterableIterator<T>, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncBooleanResultCallback<E>): void;\nexport function every<T, E>(arr: Dictionary<T>, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncBooleanResultCallback<E>): void;\nexport const everySeries: typeof every;\nexport function everyLimit<T, E>(arr: T[] | IterableIterator<T>, limit: number, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncBooleanResultCallback<E>): void;\nexport function everyLimit<T, E>(arr: Dictionary<T>, limit: number, iterator: AsyncBooleanIterator<T, E>, callback?: AsyncBooleanResultCallback<E>): void;\nexport const all: typeof every;\nexport const allSeries: typeof every;\nexport const allLimit: typeof everyLimit;\n\nexport function concat<T, R, E>(arr: T[] | IterableIterator<T>, iterator: AsyncResultIterator<T, R[], E>, callback?: AsyncResultArrayCallback<R, E>): void;\nexport function concat<T, R, E>(arr: Dictionary<T>, iterator: AsyncResultIterator<T, R[], E>, callback?: AsyncResultArrayCallback<R, E>): void;\nexport function concatLimit<T, R, E>(arr: T[] | IterableIterator<T>, limit: number, iterator: AsyncResultIterator<T, R[], E>, callback?: AsyncResultArrayCallback<R, E>): void;\nexport function concatLimit<T, R, E>(arr: Dictionary<T>, limit: number,iterator: AsyncResultIterator<T, R[], E>, callback?: AsyncResultArrayCallback<R, E>): void;\nexport const concatSeries: typeof concat;\n\n// Control Flow\nexport function series<T, E>(tasks: AsyncFunction<T, E>[], callback?: AsyncResultArrayCallback<T, E>): void;\nexport function series<T, E>(tasks: Dictionary<AsyncFunction<T, E>>, callback?: AsyncResultObjectCallback<T, E>): void;\nexport function parallel<T, E>(tasks: Array<AsyncFunction<T, E>>, callback?: AsyncResultArrayCallback<T, E>): void;\nexport function parallel<T, E>(tasks: Dictionary<AsyncFunction<T, E>>, callback?: AsyncResultObjectCallback<T, E>): void;\nexport function parallelLimit<T, E>(tasks: Array<AsyncFunction<T, E>>, limit: number, callback?: AsyncResultArrayCallback<T, E>): void;\nexport function parallelLimit<T, E>(tasks: Dictionary<AsyncFunction<T, E>>, limit: number, callback?: AsyncResultObjectCallback<T, E>): void;\nexport function whilst<E>(test: () => boolean, fn: AsyncVoidFunction<E>, callback: ErrorCallback<E>): void;\nexport function doWhilst<T, E>(fn: AsyncFunctionEx<T, E>, test: (...results: T[]) => boolean, callback: ErrorCallback<E>): void;\nexport function until<E>(test: () => boolean, fn: AsyncVoidFunction<E>, callback: ErrorCallback<E>): void;\nexport function doUntil<T, E>(fn: AsyncFunctionEx<T, E>, test: (...results: T[]) => boolean, callback: ErrorCallback<E>): void;\nexport function during<E>(test: (testCallback : AsyncBooleanResultCallback<E>) => void, fn: AsyncVoidFunction<E>, callback: ErrorCallback<E>): void;\nexport function doDuring<E>(fn: AsyncVoidFunction<E>, test: (testCallback: AsyncBooleanResultCallback<E>) => void, callback: ErrorCallback<E>): void;\nexport function forever<E>(next: (next : ErrorCallback<E>) => void, errBack: ErrorCallback<E>) : void;\nexport function waterfall<T, E>(tasks: Function[], callback?: AsyncResultCallback<T, E | Error>): void;\nexport function compose(...fns: Function[]): Function;\nexport function seq(...fns: Function[]): Function;\nexport function applyEach(fns: Function[], argsAndCallback: any[]): void;           // applyEach(fns, args..., callback). TS does not support ... for a middle argument. Callback is optional.\nexport function applyEachSeries(fns: Function[], argsAndCallback: any[]): void;     // applyEachSeries(fns, args..., callback). TS does not support ... for a middle argument. Callback is optional.\nexport function queue<T, E>(worker: AsyncWorker<T, E>, concurrency?: number): AsyncQueue<T>;\nexport function queue<T, R, E>(worker: AsyncResultIterator<T, R, E>, concurrency?: number): AsyncQueue<T>;\nexport function priorityQueue<T, E>(worker: AsyncWorker<T, E>, concurrency: number): AsyncPriorityQueue<T>;\nexport function cargo<E>(worker : (tasks: any[], callback : ErrorCallback<E>) => void, payload? : number) : AsyncCargo;\nexport function auto<R extends Dictionary<any>, E>(tasks: AsyncAutoTasks<R, E>, concurrency?: number, callback?: AsyncResultCallback<R, E>): void;\nexport function autoInject<E>(tasks: any, callback?: AsyncResultCallback<any, E>): void;\nexport function retry<T, E>(opts: number, task: (callback : AsyncResultCallback<T, E>, results: any) => void, callback:  AsyncResultCallback<any, E | Error>): void;\nexport function retry<T, E>(opts: { times: number, interval: number|((retryCount: number) => number) }, task: (callback: AsyncResultCallback<T, E>, results : any) => void, callback:  AsyncResultCallback<any, E | Error>): void;\nexport function retryable<T, E>(opts: number | {times: number, interval: number}, task: AsyncFunction<T, E>): AsyncFunction<T, E | Error>;\nexport function apply<E>(fn: Function, ...args: any[]): AsyncFunction<any,E | Error>;\nexport function nextTick(callback: Function, ...args: any[]): void;\nexport const setImmediate: typeof nextTick;\n\nexport function reflect<T, E>(fn: AsyncFunction<T, E>) : (callback: (err: null, result: {error?: E, value?: T}) => void) => void;\nexport function reflectAll<T, E>(tasks: AsyncFunction<T, E>[]): ((callback: (err: null, result: {error?: E, value?: T}) => void) => void)[];\n\nexport function timeout<T, E>(fn: AsyncFunction<T, E>, milliseconds: number, info?: any): AsyncFunction<T, E | Error>;\nexport function timeout<T, R, E>(fn: AsyncResultIterator<T, R, E>, milliseconds: number, info?: any): AsyncResultIterator<T, R, E | Error>;\n\nexport function times<T, E> (n: number, iterator: AsyncResultIterator<number, T, E>, callback: AsyncResultArrayCallback<T, E>): void;\nexport function timesSeries<T, E>(n: number, iterator: AsyncResultIterator<number, T, E>, callback: AsyncResultArrayCallback<T, E>): void;\nexport function timesLimit<T, E>(n: number, limit: number, iterator: AsyncResultIterator<number, T, E>, callback: AsyncResultArrayCallback<T, E>): void;\n\nexport function transform<T, R, E>(arr: T[], iteratee: (acc: R[], item: T, key: number, callback: (error?: E) => void) => void, callback?: AsyncResultArrayCallback<T, E>): void;\nexport function transform<T, R, E>(arr: T[], acc: R[], iteratee: (acc: R[], item: T, key: number, callback: (error?: E) => void) => void, callback?: AsyncResultArrayCallback<T, E>): void;\n\nexport function transform<T, R, E>(arr: {[key: string] : T}, iteratee: (acc: {[key: string] : R}, item: T, key: string, callback: (error?: E) => void) => void, callback?: AsyncResultObjectCallback<T, E>): void;\nexport function transform<T, R, E>(arr: {[key: string] : T}, acc: {[key: string] : R}, iteratee: (acc: {[key: string] : R}, item: T, key: string, callback: (error?: E) => void) => void, callback?: AsyncResultObjectCallback<T, E>): void;\n\nexport function race<T, E>(tasks: (AsyncFunction<T, E>)[], callback: AsyncResultCallback<T, E | Error>) : void;\n\n// Utils\nexport function memoize(fn: Function, hasher?: Function): Function;\nexport function unmemoize(fn: Function): Function;\nexport function ensureAsync(fn: (... argsAndCallback: any[]) => void): Function;\nexport function constant(...values: any[]): Function;\nexport function asyncify(fn: Function): (...args: any[]) => any;\nexport function wrapSync(fn: Function): Function;\nexport function log(fn: Function, ...args: any[]): void;\nexport function dir(fn: Function, ...args: any[]): void;\n"
+        },
+        "gm": {
+          "name": "gm",
+          "concatenatedName": "gm",
+          "downloadsLast30Days": 230607,
+          "downloadsRatio": 0.001767276395569014,
+          "humanDownloadsLast30Days": "230.6k",
+          "popular": false,
+          "version": "1.23.1",
+          "versions": {
+            "0.1.1": "2011-04-29T01:07:41.212Z",
+            "0.1.2": "2011-04-29T01:07:41.212Z",
+            "0.2.0": "2011-04-29T01:07:41.212Z",
+            "0.2.1": "2011-04-29T01:07:41.212Z",
+            "0.3.0": "2011-04-29T01:07:41.212Z",
+            "0.3.1": "2011-04-29T01:07:41.212Z",
+            "0.3.2": "2011-04-29T01:07:41.212Z",
+            "0.4.0": "2011-04-29T01:07:41.212Z",
+            "0.4.1": "2011-04-29T01:07:41.212Z",
+            "0.4.2": "2011-05-10T12:06:00.871Z",
+            "0.4.3": "2011-05-18T01:18:35.542Z",
+            "0.5.0": "2011-07-12T13:09:27.564Z",
+            "0.6.0": "2011-12-14T14:48:42.793Z",
+            "1.0.0": "2012-01-12T13:45:18.330Z",
+            "1.0.1": "2012-01-12T22:15:43.344Z",
+            "1.0.2": "2012-01-24T19:26:48.532Z",
+            "1.0.3": "2012-01-26T21:40:06.411Z",
+            "1.0.4": "2012-02-11T15:22:45.856Z",
+            "1.0.5": "2012-02-15T19:59:02.585Z",
+            "1.1.0": "2012-03-15T11:17:21.065Z",
+            "1.2.0": "2012-03-31T03:56:28.533Z",
+            "1.3.0": "2012-04-11T15:43:40.377Z",
+            "1.3.1": "2012-06-07T06:15:57.271Z",
+            "1.3.2": "2012-06-22T18:43:47.823Z",
+            "1.4.0": "2012-07-28T18:45:04.901Z",
+            "1.4.1": "2012-07-31T15:07:58.972Z",
+            "1.4.2": "2012-08-18T06:55:03.022Z",
+            "1.5.0": "2012-09-16T00:06:23.512Z",
+            "1.5.1": "2012-10-02T18:45:31.303Z",
+            "1.6.0": "2012-11-10T18:35:56.315Z",
+            "1.6.1": "2012-11-13T16:16:56.916Z",
+            "1.7.0": "2012-12-07T02:05:34.707Z",
+            "1.8.0": "2012-12-14T18:28:31.757Z",
+            "1.8.1": "2012-12-21T22:39:36.422Z",
+            "1.8.2": "2013-03-07T19:01:34.973Z",
+            "1.9.0": "2013-04-22T01:25:52.030Z",
+            "1.9.1": "2013-05-07T16:39:53.426Z",
+            "1.9.2": "2013-06-12T21:32:39.522Z",
+            "1.10.0": "2013-06-27T21:13:00.901Z",
+            "1.11.0": "2013-07-23T23:01:26.842Z",
+            "1.11.1": "2013-08-18T00:25:24.938Z",
+            "1.12.0": "2013-08-27T21:49:04.302Z",
+            "1.12.1": "2013-08-29T21:59:19.422Z",
+            "1.12.2": "2013-08-29T22:19:57.201Z",
+            "1.13.0": "2013-09-08T06:25:03.836Z",
+            "1.13.1": "2013-09-16T04:06:56.584Z",
+            "1.13.2": "2013-10-18T08:30:07.342Z",
+            "1.13.3": "2013-10-23T04:47:18.534Z",
+            "1.14.0": "2013-12-04T21:59:57.476Z",
+            "1.14.1": "2013-12-10T01:25:41.780Z",
+            "1.14.2": "2013-12-25T06:03:40.866Z",
+            "1.15.0": "2014-05-03T16:40:34.793Z",
+            "1.16.0": "2014-05-10T01:36:31.196Z",
+            "1.17.0": "2014-10-28T17:46:35.059Z",
+            "1.18.1": "2015-05-18T20:41:59.791Z",
+            "1.19.0": "2015-09-16T14:28:35.272Z",
+            "1.20.0": "2015-09-23T18:04:09.178Z",
+            "1.21.0": "2015-10-26T18:58:20.580Z",
+            "1.21.1": "2015-10-26T20:48:56.709Z",
+            "1.22.0": "2016-04-07T17:51:05.040Z",
+            "1.23.0": "2016-08-03T22:20:17.989Z",
+            "1.23.1": "2017-12-28T04:49:26.108Z"
+          },
+          "tags": {
+            "latest": "1.23.1"
+          },
+          "description": "GraphicsMagick and ImageMagick for node.js",
+          "dependencies": {
+            "array-parallel": "~0.1.3",
+            "array-series": "~0.1.5",
+            "cross-spawn": "^4.0.0",
+            "debug": "^3.1.0"
+          },
+          "devDependencies": {
+            "async": "~0.9.0",
+            "nsp": "^3"
+          },
+          "repository": {
+            "url": "https://github.com/aheckmann/gm",
+            "project": "gm",
+            "user": "aheckmann",
+            "host": "github.com",
+            "path": "",
+            "head": "0286f47b1d5c1479c136616a73bced0ee0d2835c",
+            "branch": "0286f47b1d5c1479c136616a73bced0ee0d2835c"
+          },
+          "githubRepo": {
+            "user": "aheckmann",
+            "project": "gm",
+            "path": "",
+            "head": "0286f47b1d5c1479c136616a73bced0ee0d2835c"
+          },
+          "gitHead": "0286f47b1d5c1479c136616a73bced0ee0d2835c",
+          "readme": "\n# gm [![Build Status](https://travis-ci.org/aheckmann/gm.png?branch=master)](https://travis-ci.org/aheckmann/gm)  [![NPM Version](https://img.shields.io/npm/v/gm.svg?style=flat)](https://www.npmjs.org/package/gm)\n\nGraphicsMagick and ImageMagick for node\n\n## Bug Reports\n\nWhen reporting bugs please include the version of graphicsmagick/imagemagick you're using (gm -version/convert -version) as well as the version of this module and copies of any images you're having problems with.\n\n## Getting started\nFirst download and install [GraphicsMagick](http://www.graphicsmagick.org/) or [ImageMagick](http://www.imagemagick.org/). In Mac OS X, you can simply use [Homebrew](http://mxcl.github.io/homebrew/) and do:\n\n    brew install imagemagick\n    brew install graphicsmagick\n\nIf you want WebP support with ImageMagick, you must add the WebP option:\n\n    brew install imagemagick --with-webp\n\nthen either use npm:\n\n    npm install gm\n\nor clone the repo:\n\n    git clone git://github.com/aheckmann/gm.git\n\n\n## Use ImageMagick instead of gm\n\nSubclass `gm` to enable ImageMagick\n\n```js\nvar fs = require('fs')\n  , gm = require('gm').subClass({imageMagick: true});\n\n// resize and remove EXIF profile data\ngm('/path/to/my/img.jpg')\n.resize(240, 240)\n...\n```\n\n\n## Basic Usage\n\n```js\nvar fs = require('fs')\n  , gm = require('gm');\n\n// resize and remove EXIF profile data\ngm('/path/to/my/img.jpg')\n.resize(240, 240)\n.noProfile()\n.write('/path/to/resize.png', function (err) {\n  if (!err) console.log('done');\n});\n\n// some files would not be resized appropriately\n// http://stackoverflow.com/questions/5870466/imagemagick-incorrect-dimensions\n// you have two options:\n// use the '!' flag to ignore aspect ratio\ngm('/path/to/my/img.jpg')\n.resize(240, 240, '!')\n.write('/path/to/resize.png', function (err) {\n  if (!err) console.log('done');\n});\n\n// use the .resizeExact with only width and/or height arguments\ngm('/path/to/my/img.jpg')\n.resizeExact(240, 240)\n.write('/path/to/resize.png', function (err) {\n  if (!err) console.log('done');\n});\n\n// obtain the size of an image\ngm('/path/to/my/img.jpg')\n.size(function (err, size) {\n  if (!err)\n    console.log(size.width > size.height ? 'wider' : 'taller than you');\n});\n\n// output all available image properties\ngm('/path/to/img.png')\n.identify(function (err, data) {\n  if (!err) console.log(data)\n});\n\n// pull out the first frame of an animated gif and save as png\ngm('/path/to/animated.gif[0]')\n.write('/path/to/firstframe.png', function (err) {\n  if (err) console.log('aaw, shucks');\n});\n\n// auto-orient an image\ngm('/path/to/img.jpg')\n.autoOrient()\n.write('/path/to/oriented.jpg', function (err) {\n  if (err) ...\n})\n\n// crazytown\ngm('/path/to/my/img.jpg')\n.flip()\n.magnify()\n.rotate('green', 45)\n.blur(7, 3)\n.crop(300, 300, 150, 130)\n.edge(3)\n.write('/path/to/crazy.jpg', function (err) {\n  if (!err) console.log('crazytown has arrived');\n})\n\n// annotate an image\ngm('/path/to/my/img.jpg')\n.stroke(\"#ffffff\")\n.drawCircle(10, 10, 20, 10)\n.font(\"Helvetica.ttf\", 12)\n.drawText(30, 20, \"GMagick!\")\n.write(\"/path/to/drawing.png\", function (err) {\n  if (!err) console.log('done');\n});\n\n// creating an image\ngm(200, 400, \"#ddff99f3\")\n.drawText(10, 50, \"from scratch\")\n.write(\"/path/to/brandNewImg.jpg\", function (err) {\n  // ...\n});\n```\n\n## Streams\n\n```js\n// passing a stream\nvar readStream = fs.createReadStream('/path/to/my/img.jpg');\ngm(readStream, 'img.jpg')\n.write('/path/to/reformat.png', function (err) {\n  if (!err) console.log('done');\n});\n\n\n// passing a downloadable image by url\n\nvar request = require('request');\nvar url = \"www.abc.com/pic.jpg\"\n\ngm(request(url))\n.write('/path/to/reformat.png', function (err) {\n  if (!err) console.log('done');\n});\n\n\n// can also stream output to a ReadableStream\n// (can be piped to a local file or remote server)\ngm('/path/to/my/img.jpg')\n.resize('200', '200')\n.stream(function (err, stdout, stderr) {\n  var writeStream = fs.createWriteStream('/path/to/my/resized.jpg');\n  stdout.pipe(writeStream);\n});\n\n// without a callback, .stream() returns a stream\n// this is just a convenience wrapper for above.\nvar writeStream = fs.createWriteStream('/path/to/my/resized.jpg');\ngm('/path/to/my/img.jpg')\n.resize('200', '200')\n.stream()\n.pipe(writeStream);\n\n// pass a format or filename to stream() and\n// gm will provide image data in that format\ngm('/path/to/my/img.jpg')\n.stream('png', function (err, stdout, stderr) {\n  var writeStream = fs.createWriteStream('/path/to/my/reformatted.png');\n  stdout.pipe(writeStream);\n});\n\n// or without the callback\nvar writeStream = fs.createWriteStream('/path/to/my/reformatted.png');\ngm('/path/to/my/img.jpg')\n.stream('png')\n.pipe(writeStream);\n\n// combine the two for true streaming image processing\nvar readStream = fs.createReadStream('/path/to/my/img.jpg');\ngm(readStream)\n.resize('200', '200')\n.stream(function (err, stdout, stderr) {\n  var writeStream = fs.createWriteStream('/path/to/my/resized.jpg');\n  stdout.pipe(writeStream);\n});\n\n// GOTCHA:\n// when working with input streams and any 'identify'\n// operation (size, format, etc), you must pass \"{bufferStream: true}\" if\n// you also need to convert (write() or stream()) the image afterwards\n// NOTE: this buffers the readStream in memory!\nvar readStream = fs.createReadStream('/path/to/my/img.jpg');\ngm(readStream)\n.size({bufferStream: true}, function(err, size) {\n  this.resize(size.width / 2, size.height / 2)\n  this.write('/path/to/resized.jpg', function (err) {\n    if (!err) console.log('done');\n  });\n});\n\n```\n\n## Buffers\n\n```js\n// A buffer can be passed instead of a filepath as well\nvar buf = require('fs').readFileSync('/path/to/image.jpg');\n\ngm(buf, 'image.jpg')\n.noise('laplacian')\n.write('/path/to/out.jpg', function (err) {\n  if (err) return handle(err);\n  console.log('Created an image from a Buffer!');\n});\n\n/*\nA buffer can also be returned instead of a stream\nThe first argument to toBuffer is optional, it specifies the image format\n*/\ngm('img.jpg')\n.resize(100, 100)\n.toBuffer('PNG',function (err, buffer) {\n  if (err) return handle(err);\n  console.log('done!');\n})\n```\n\n## Custom Arguments\n\nIf `gm` does not supply you with a method you need or does not work as you'd like, you can simply use `gm().in()` or `gm().out()` to set your own arguments.\n\n- `gm().command()` - Custom command such as `identify` or `convert`\n- `gm().in()` - Custom input arguments\n- `gm().out()` - Custom output arguments\n\nThe command will be formatted in the following order:\n\n1. `command` - ie `convert`\n2. `in` - the input arguments\n3. `source` - stdin or an image file\n4. `out` - the output arguments\n5. `output` - stdout or the image file to write to\n\nFor example, suppose you want the following command:\n\n```bash\ngm \"convert\" \"label:Offline\" \"PNG:-\"\n```\n\nHowever, using `gm().label()` may not work as intended for you:\n\n```js\ngm()\n.label('Offline')\n.stream();\n```\n\nwould yield:\n\n```bash\ngm \"convert\" \"-label\" \"\\\"Offline\\\"\" \"PNG:-\"\n```\n\nInstead, you can use `gm().out()`:\n\n```js\ngm()\n.out('label:Offline')\n.stream();\n```\n\nwhich correctly yields:\n\n```bash\ngm \"convert\" \"label:Offline\" \"PNG:-\"\n```\n\n### Custom Identify Format String\n\nWhen identifying an image, you may want to use a custom formatting string instead of using `-verbose`, which is quite slow.\nYou can use your own [formatting string](http://www.imagemagick.org/script/escape.php) when using `gm().identify(format, callback)`.\nFor example,\n\n```js\ngm('img.png').format(function (err, format) {\n\n})\n\n// is equivalent to\n\ngm('img.png').identify('%m', function (err, format) {\n\n})\n```\n\nsince `%m` is the format option for getting the image file format.\n\n## Platform differences\n\nPlease document and refer to any [platform or ImageMagick/GraphicsMagick issues/differences here](https://github.com/aheckmann/gm/wiki/GraphicsMagick-and-ImageMagick-versions).\n\n## Examples:\n\n  Check out the [examples](http://github.com/aheckmann/gm/tree/master/examples/) directory to play around.\n  Also take a look at the [extending gm](http://wiki.github.com/aheckmann/gm/extending-gm)\n  page to see how to customize gm to your own needs.\n\n## Constructor:\n\n  There are a few ways you can use the `gm` image constructor.\n\n  - 1) `gm(path)` When you pass a string as the first argument it is interpreted as the path to an image you intend to manipulate.\n  - 2) `gm(stream || buffer, [filename])` You may also pass a ReadableStream or Buffer as the first argument, with an optional file name for format inference.\n  - 3) `gm(width, height, [color])` When you pass two integer arguments, gm will create a new image on the fly with the provided dimensions and an optional background color. And you can still chain just like you do with pre-existing images too. See [here](http://github.com/aheckmann/gm/blob/master/examples/new.js) for an example.\n\nThe links below refer to an older version of gm but everything should still work, if anyone feels like updating them please make a PR\n\n## Methods\n\n  - getters\n    - [size](http://aheckmann.github.com/gm/docs.html#getters) - returns the size (WxH) of the image\n    - [orientation](http://aheckmann.github.com/gm/docs.html#getters) - returns the EXIF orientation of the image\n    - [format](http://aheckmann.github.com/gm/docs.html#getters) - returns the image format (gif, jpeg, png, etc)\n    - [depth](http://aheckmann.github.com/gm/docs.html#getters) - returns the image color depth\n    - [color](http://aheckmann.github.com/gm/docs.html#getters) - returns the number of colors\n    - [res](http://aheckmann.github.com/gm/docs.html#getters)   - returns the image resolution\n    - [filesize](http://aheckmann.github.com/gm/docs.html#getters) - returns image filesize\n    - [identify](http://aheckmann.github.com/gm/docs.html#getters) - returns all image data available. Takes an optional format string.\n\n  - manipulation\n    - [adjoin](http://aheckmann.github.com/gm/docs.html#adjoin)\n    - [affine](http://aheckmann.github.com/gm/docs.html#affine)\n    - [antialias](http://aheckmann.github.com/gm/docs.html#antialias)\n    - [append](http://aheckmann.github.com/gm/docs.html#append)\n    - [authenticate](http://aheckmann.github.com/gm/docs.html#authenticate)\n    - [autoOrient](http://aheckmann.github.com/gm/docs.html#autoOrient)\n    - [average](http://aheckmann.github.com/gm/docs.html#average)\n    - [backdrop](http://aheckmann.github.com/gm/docs.html#backdrop)\n    - [bitdepth](http://aheckmann.github.com/gm/docs.html#bitdepth)\n    - [blackThreshold](http://aheckmann.github.com/gm/docs.html#blackThreshold)\n    - [bluePrimary](http://aheckmann.github.com/gm/docs.html#bluePrimary)\n    - [blur](http://aheckmann.github.com/gm/docs.html#blur)\n    - [border](http://aheckmann.github.com/gm/docs.html#border)\n    - [borderColor](http://aheckmann.github.com/gm/docs.html#borderColor)\n    - [box](http://aheckmann.github.com/gm/docs.html#box)\n    - [channel](http://aheckmann.github.com/gm/docs.html#channel)\n    - [charcoal](http://aheckmann.github.com/gm/docs.html#charcoal)\n    - [chop](http://aheckmann.github.com/gm/docs.html#chop)\n    - [clip](http://aheckmann.github.com/gm/docs.html#clip)\n    - [coalesce](http://aheckmann.github.com/gm/docs.html#coalesce)\n    - [colors](http://aheckmann.github.com/gm/docs.html#colors)\n    - [colorize](http://aheckmann.github.com/gm/docs.html#colorize)\n    - [colorMap](http://aheckmann.github.com/gm/docs.html#colorMap)\n    - [colorspace](http://aheckmann.github.com/gm/docs.html#colorspace)\n    - [comment](http://aheckmann.github.com/gm/docs.html#comment)\n    - [compose](http://aheckmann.github.com/gm/docs.html#compose)\n    - [compress](http://aheckmann.github.com/gm/docs.html#compress)\n    - [contrast](http://aheckmann.github.com/gm/docs.html#contrast)\n    - [convolve](http://aheckmann.github.com/gm/docs.html#convolve)\n    - [createDirectories](http://aheckmann.github.com/gm/docs.html#createDirectories)\n    - [crop](http://aheckmann.github.com/gm/docs.html#crop)\n    - [cycle](http://aheckmann.github.com/gm/docs.html#cycle)\n    - [deconstruct](http://aheckmann.github.com/gm/docs.html#deconstruct)\n    - [delay](http://aheckmann.github.com/gm/docs.html#delay)\n    - [define](http://aheckmann.github.com/gm/docs.html#define)\n    - [density](http://aheckmann.github.com/gm/docs.html#density)\n    - [despeckle](http://aheckmann.github.com/gm/docs.html#despeckle)\n    - [dither](http://aheckmann.github.com/gm/docs.html#dither)\n    - [displace](http://aheckmann.github.com/gm/docs.html#dither)\n    - [display](http://aheckmann.github.com/gm/docs.html#display)\n    - [dispose](http://aheckmann.github.com/gm/docs.html#dispose)\n    - [dissolve](http://aheckmann.github.com/gm/docs.html#dissolve)\n    - [edge](http://aheckmann.github.com/gm/docs.html#edge)\n    - [emboss](http://aheckmann.github.com/gm/docs.html#emboss)\n    - [encoding](http://aheckmann.github.com/gm/docs.html#encoding)\n    - [enhance](http://aheckmann.github.com/gm/docs.html#enhance)\n    - [endian](http://aheckmann.github.com/gm/docs.html#endian)\n    - [equalize](http://aheckmann.github.com/gm/docs.html#equalize)\n    - [extent](http://aheckmann.github.com/gm/docs.html#extent)\n    - [file](http://aheckmann.github.com/gm/docs.html#file)\n    - [filter](http://aheckmann.github.com/gm/docs.html#filter)\n    - [flatten](http://aheckmann.github.com/gm/docs.html#flatten)\n    - [flip](http://aheckmann.github.com/gm/docs.html#flip)\n    - [flop](http://aheckmann.github.com/gm/docs.html#flop)\n    - [foreground](http://aheckmann.github.com/gm/docs.html#foreground)\n    - [frame](http://aheckmann.github.com/gm/docs.html#frame)\n    - [fuzz](http://aheckmann.github.com/gm/docs.html#fuzz)\n    - [gamma](http://aheckmann.github.com/gm/docs.html#gamma)\n    - [gaussian](http://aheckmann.github.com/gm/docs.html#gaussian)\n    - [geometry](http://aheckmann.github.com/gm/docs.html#geometry)\n    - [gravity](http://aheckmann.github.com/gm/docs.html#gravity)\n    - [greenPrimary](http://aheckmann.github.com/gm/docs.html#greenPrimary)\n    - [highlightColor](http://aheckmann.github.com/gm/docs.html#highlightColor)\n    - [highlightStyle](http://aheckmann.github.com/gm/docs.html#highlightStyle)\n    - [iconGeometry](http://aheckmann.github.com/gm/docs.html#iconGeometry)\n    - [implode](http://aheckmann.github.com/gm/docs.html#implode)\n    - [intent](http://aheckmann.github.com/gm/docs.html#intent)\n    - [interlace](http://aheckmann.github.com/gm/docs.html#interlace)\n    - [label](http://aheckmann.github.com/gm/docs.html#label)\n    - [lat](http://aheckmann.github.com/gm/docs.html#lat)\n    - [level](http://aheckmann.github.com/gm/docs.html#level)\n    - [list](http://aheckmann.github.com/gm/docs.html#list)\n    - [limit](http://aheckmann.github.com/gm/docs.html#limit)\n    - [log](http://aheckmann.github.com/gm/docs.html#log)\n    - [loop](http://aheckmann.github.com/gm/docs.html#loop)\n    - [lower](http://aheckmann.github.com/gm/docs.html#lower)\n    - [magnify](http://aheckmann.github.com/gm/docs.html#magnify)\n    - [map](http://aheckmann.github.com/gm/docs.html#map)\n    - [matte](http://aheckmann.github.com/gm/docs.html#matte)\n    - [matteColor](http://aheckmann.github.com/gm/docs.html#matteColor)\n    - [mask](http://aheckmann.github.com/gm/docs.html#mask)\n    - [maximumError](http://aheckmann.github.com/gm/docs.html#maximumError)\n    - [median](http://aheckmann.github.com/gm/docs.html#median)\n    - [minify](http://aheckmann.github.com/gm/docs.html#minify)\n    - [mode](http://aheckmann.github.com/gm/docs.html#mode)\n    - [modulate](http://aheckmann.github.com/gm/docs.html#modulate)\n    - [monitor](http://aheckmann.github.com/gm/docs.html#monitor)\n    - [monochrome](http://aheckmann.github.com/gm/docs.html#monochrome)\n    - [morph](http://aheckmann.github.com/gm/docs.html#morph)\n    - [mosaic](http://aheckmann.github.com/gm/docs.html#mosaic)\n    - [motionBlur](http://aheckmann.github.com/gm/docs.html#motionBlur)\n    - [name](http://aheckmann.github.com/gm/docs.html#name)\n    - [negative](http://aheckmann.github.com/gm/docs.html#negative)\n    - [noise](http://aheckmann.github.com/gm/docs.html#noise)\n    - [noop](http://aheckmann.github.com/gm/docs.html#noop)\n    - [normalize](http://aheckmann.github.com/gm/docs.html#normalize)\n    - [noProfile](http://aheckmann.github.com/gm/docs.html#profile)\n    - [opaque](http://aheckmann.github.com/gm/docs.html#opaque)\n    - [operator](http://aheckmann.github.com/gm/docs.html#operator)\n    - [orderedDither](http://aheckmann.github.com/gm/docs.html#orderedDither)\n    - [outputDirectory](http://aheckmann.github.com/gm/docs.html#outputDirectory)\n    - [paint](http://aheckmann.github.com/gm/docs.html#paint)\n    - [page](http://aheckmann.github.com/gm/docs.html#page)\n    - [pause](http://aheckmann.github.com/gm/docs.html#pause)\n    - [pen](http://aheckmann.github.com/gm/docs.html#pen)\n    - [ping](http://aheckmann.github.com/gm/docs.html#ping)\n    - [pointSize](http://aheckmann.github.com/gm/docs.html#pointSize)\n    - [preview](http://aheckmann.github.com/gm/docs.html#preview)\n    - [process](http://aheckmann.github.com/gm/docs.html#process)\n    - [profile](http://aheckmann.github.com/gm/docs.html#profile)\n    - [progress](http://aheckmann.github.com/gm/docs.html#progress)\n    - [quality](http://aheckmann.github.com/gm/docs.html#quality)\n    - [raise](http://aheckmann.github.com/gm/docs.html#raise)\n    - [rawSize](http://aheckmann.github.com/gm/docs.html#rawSize)\n    - [randomThreshold](http://aheckmann.github.com/gm/docs.html#randomThreshold)\n    - [recolor](http://aheckmann.github.com/gm/docs.html#recolor)\n    - [redPrimary](http://aheckmann.github.com/gm/docs.html#redPrimary)\n    - [region](http://aheckmann.github.com/gm/docs.html#region)\n    - [remote](http://aheckmann.github.com/gm/docs.html#remote)\n    - [render](http://aheckmann.github.com/gm/docs.html#render)\n    - [repage](http://aheckmann.github.com/gm/docs.html#repage)\n    - [resample](http://aheckmann.github.com/gm/docs.html#resample)\n    - [resize](http://aheckmann.github.com/gm/docs.html#resize)\n    - [roll](http://aheckmann.github.com/gm/docs.html#roll)\n    - [rotate](http://aheckmann.github.com/gm/docs.html#rotate)\n    - [sample](http://aheckmann.github.com/gm/docs.html#sample)\n    - [samplingFactor](http://aheckmann.github.com/gm/docs.html#samplingFactor)\n    - [scale](http://aheckmann.github.com/gm/docs.html#scale)\n    - [scene](http://aheckmann.github.com/gm/docs.html#scene)\n    - [scenes](http://aheckmann.github.com/gm/docs.html#scenes)\n    - [screen](http://aheckmann.github.com/gm/docs.html#screen)\n    - [segment](http://aheckmann.github.com/gm/docs.html#segment)\n    - [sepia](http://aheckmann.github.com/gm/docs.html#sepia)\n    - [set](http://aheckmann.github.com/gm/docs.html#set)\n    - [setFormat](http://aheckmann.github.com/gm/docs.html#setformat)\n    - [shade](http://aheckmann.github.com/gm/docs.html#shade)\n    - [shadow](http://aheckmann.github.com/gm/docs.html#shadow)\n    - [sharedMemory](http://aheckmann.github.com/gm/docs.html#sharedMemory)\n    - [sharpen](http://aheckmann.github.com/gm/docs.html#sharpen)\n    - [shave](http://aheckmann.github.com/gm/docs.html#shave)\n    - [shear](http://aheckmann.github.com/gm/docs.html#shear)\n    - [silent](http://aheckmann.github.com/gm/docs.html#silent)\n    - [solarize](http://aheckmann.github.com/gm/docs.html#solarize)\n    - [snaps](http://aheckmann.github.com/gm/docs.html#snaps)\n    - [stegano](http://aheckmann.github.com/gm/docs.html#stegano)\n    - [stereo](http://aheckmann.github.com/gm/docs.html#stereo)\n    - [strip](http://aheckmann.github.com/gm/docs.html#strip) _imagemagick only_\n    - [spread](http://aheckmann.github.com/gm/docs.html#spread)\n    - [swirl](http://aheckmann.github.com/gm/docs.html#swirl)\n    - [textFont](http://aheckmann.github.com/gm/docs.html#textFont)\n    - [texture](http://aheckmann.github.com/gm/docs.html#texture)\n    - [threshold](http://aheckmann.github.com/gm/docs.html#threshold)\n    - [thumb](http://aheckmann.github.com/gm/docs.html#thumb)\n    - [tile](http://aheckmann.github.com/gm/docs.html#tile)\n    - [transform](http://aheckmann.github.com/gm/docs.html#transform)\n    - [transparent](http://aheckmann.github.com/gm/docs.html#transparent)\n    - [treeDepth](http://aheckmann.github.com/gm/docs.html#treeDepth)\n    - [trim](http://aheckmann.github.com/gm/docs.html#trim)\n    - [type](http://aheckmann.github.com/gm/docs.html#type)\n    - [update](http://aheckmann.github.com/gm/docs.html#update)\n    - [units](http://aheckmann.github.com/gm/docs.html#units)\n    - [unsharp](http://aheckmann.github.com/gm/docs.html#unsharp)\n    - [usePixmap](http://aheckmann.github.com/gm/docs.html#usePixmap)\n    - [view](http://aheckmann.github.com/gm/docs.html#view)\n    - [virtualPixel](http://aheckmann.github.com/gm/docs.html#virtualPixel)\n    - [visual](http://aheckmann.github.com/gm/docs.html#visual)\n    - [watermark](http://aheckmann.github.com/gm/docs.html#watermark)\n    - [wave](http://aheckmann.github.com/gm/docs.html#wave)\n    - [whitePoint](http://aheckmann.github.com/gm/docs.html#whitePoint)\n    - [whiteThreshold](http://aheckmann.github.com/gm/docs.html#whiteThreshold)\n    - [window](http://aheckmann.github.com/gm/docs.html#window)\n    - [windowGroup](http://aheckmann.github.com/gm/docs.html#windowGroup)\n\n  - drawing primitives\n    - [draw](http://aheckmann.github.com/gm/docs.html#draw)\n    - [drawArc](http://aheckmann.github.com/gm/docs.html#drawArc)\n    - [drawBezier](http://aheckmann.github.com/gm/docs.html#drawBezier)\n    - [drawCircle](http://aheckmann.github.com/gm/docs.html#drawCircle)\n    - [drawEllipse](http://aheckmann.github.com/gm/docs.html#drawEllipse)\n    - [drawLine](http://aheckmann.github.com/gm/docs.html#drawLine)\n    - [drawPoint](http://aheckmann.github.com/gm/docs.html#drawPoint)\n    - [drawPolygon](http://aheckmann.github.com/gm/docs.html#drawPolygon)\n    - [drawPolyline](http://aheckmann.github.com/gm/docs.html#drawPolyline)\n    - [drawRectangle](http://aheckmann.github.com/gm/docs.html#drawRectangle)\n    - [drawText](http://aheckmann.github.com/gm/docs.html#drawText)\n    - [fill](http://aheckmann.github.com/gm/docs.html#fill)\n    - [font](http://aheckmann.github.com/gm/docs.html#font)\n    - [fontSize](http://aheckmann.github.com/gm/docs.html#fontSize)\n    - [stroke](http://aheckmann.github.com/gm/docs.html#stroke)\n    - [strokeWidth](http://aheckmann.github.com/gm/docs.html#strokeWidth)\n    - [setDraw](http://aheckmann.github.com/gm/docs.html#setDraw)\n\n  - image output\n    - **write** - writes the processed image data to the specified filename\n    - **stream** - provides a `ReadableStream` with the processed image data\n    - **toBuffer** - returns the image as a `Buffer` instead of a stream\n\n##compare\n\nGraphicsmagicks `compare` command is exposed through `gm.compare()`. This allows us to determine if two images can be considered \"equal\".\n\nCurrently `gm.compare` only accepts file paths.\n\n    gm.compare(path1, path2 [, options], callback)\n\n```js\ngm.compare('/path/to/image1.jpg', '/path/to/another.png', function (err, isEqual, equality, raw, path1, path2) {\n  if (err) return handle(err);\n\n  // if the images were considered equal, `isEqual` will be true, otherwise, false.\n  console.log('The images were equal: %s', isEqual);\n\n  // to see the total equality returned by graphicsmagick we can inspect the `equality` argument.\n  console.log('Actual equality: %d', equality);\n\n  // inspect the raw output\n  console.log(raw);\n\n  // print file paths\n  console.log(path1, path2);\n})\n```\n\nYou may wish to pass a custom tolerance threshold to increase or decrease the default level of `0.4`.\n\n\n```js\ngm.compare('/path/to/image1.jpg', '/path/to/another.png', 1.2, function (err, isEqual) {\n  ...\n})\n```\n\nTo output a diff image, pass a configuration object to define the diff options and tolerance.\n\n\n```js\nvar options = {\n  file: '/path/to/diff.png',\n  highlightColor: 'yellow',\n  tolerance: 0.02\n}\ngm.compare('/path/to/image1.jpg', '/path/to/another.png', options, function (err, isEqual, equality, raw) {\n  ...\n})\n```\n\n##composite\n\nGraphicsMagick supports compositing one image on top of another. This is exposed through `gm.composite()`. Its first argument is an image path with the changes to the base image, and an optional mask image.\n\nCurrently, `gm.composite()` only accepts file paths.\n\n    gm.composite(other [, mask])\n\n```js\ngm('/path/to/image.jpg')\n.composite('/path/to/second_image.jpg')\n.geometry('+100+150')\n.write('/path/to/composite.png', function(err) {\n    if(!err) console.log(\"Written composite image.\");\n});\n```\n\n##montage\n\nGraphicsMagick supports montage for combining images side by side. This is exposed through `gm.montage()`. Its only argument is an image path with the changes to the base image.\n\nCurrently, `gm.montage()` only accepts file paths.\n\n    gm.montage(other)\n\n```js\ngm('/path/to/image.jpg')\n.montage('/path/to/second_image.jpg')\n.geometry('+100+150')\n.write('/path/to/montage.png', function(err) {\n    if(!err) console.log(\"Written montage image.\");\n});\n```\n\n## Contributors\n[https://github.com/aheckmann/gm/contributors](https://github.com/aheckmann/gm/contributors)\n\n## Inspiration\nhttp://github.com/quiiver/magickal-node\n\n## Plugins\n[https://github.com/aheckmann/gm/wiki](https://github.com/aheckmann/gm/wiki)\n\n## License\n\n(The MIT License)\n\nCopyright (c) 2010 [Aaron Heckmann](aaron.heckmann+github@gmail.com)\n\nPermission is hereby granted, free of charge, to any person obtaining\na copy of this software and associated documentation files (the\n'Software'), to deal in the Software without restriction, including\nwithout limitation the rights to use, copy, modify, merge, publish,\ndistribute, sublicense, and/or sell copies of the Software, and to\npermit persons to whom the Software is furnished to do so, subject to\nthe following conditions:\n\nThe above copyright notice and this permission notice shall be\nincluded in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,\nEXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF\nMERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.\nIN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY\nCLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,\nTORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE\nSOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n",
+          "owner": {
+            "name": "aheckmann",
+            "avatar": "https://github.com/aheckmann.png",
+            "link": "https://github.com/aheckmann"
+          },
+          "deprecated": false,
+          "badPackage": false,
+          "homepage": null,
+          "license": "MIT",
+          "keywords": [
+            "graphics",
+            "magick",
+            "image",
+            "graphicsmagick",
+            "imagemagick",
+            "gm",
+            "convert",
+            "identify",
+            "compare"
+          ],
+          "created": 1304039261212,
+          "modified": 1516270160137,
+          "lastPublisher": {
+            "name": "aaron",
+            "email": "aaron.heckmann+github@gmail.com",
+            "avatar": "https://gravatar.com/avatar/e2e776d3d6fbc6a6b7e4c692bd080595",
+            "link": "https://www.npmjs.com/~aaron"
+          },
+          "owners": [
+            {
+              "email": "jonathanrichardong@gmail.com",
+              "name": "jongleberry",
+              "avatar": "https://gravatar.com/avatar/6e33cc0412b61cc01daac23c8989003c",
+              "link": "https://www.npmjs.com/~jongleberry"
+            },
+            {
+              "email": "admin@rwky.net",
+              "name": "rwky",
+              "avatar": "https://gravatar.com/avatar/16984fd773fe4e40c9cb0e60ff81e600",
+              "link": "https://www.npmjs.com/~rwky"
+            },
+            {
+              "email": "fragphace@gmail.com",
+              "name": "fragphace",
+              "avatar": "https://gravatar.com/avatar/20842946074d9b78d6004bb7cb18c603",
+              "link": "https://www.npmjs.com/~fragphace"
+            },
+            {
+              "email": "aaron.heckmann+github@gmail.com",
+              "name": "aaron",
+              "avatar": "https://gravatar.com/avatar/e2e776d3d6fbc6a6b7e4c692bd080595",
+              "link": "https://www.npmjs.com/~aaron"
+            }
+          ],
+          "lastCrawl": "2018-01-18T10:09:21.100Z",
+          "dependents": 711,
+          "humanDependents": "711",
+          "changelogFilename": null,
+          "objectID": "gm",
+          "_highlightResult": {
+            "name": {
+              "value": "<em>gm</em>",
+              "matchLevel": "full",
+              "fullyHighlighted": true,
+              "matchedWords": [
+                "gm"
+              ]
+            },
+            "concatenatedName": {
+              "value": "<em>gm</em>",
+              "matchLevel": "full",
+              "fullyHighlighted": true,
+              "matchedWords": [
+                "gm"
+              ]
+            },
+            "description": {
+              "value": "GraphicsMagick and ImageMagick for node.js",
+              "matchLevel": "none",
+              "matchedWords": []
+            },
+            "owner": {
+              "name": {
+                "value": "aheckmann",
+                "matchLevel": "none",
+                "matchedWords": []
+              }
+            },
+            "keywords": [
+              {
+                "value": "graphics",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "magick",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "image",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "graphicsmagick",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "imagemagick",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "<em>gm</em>",
+                "matchLevel": "full",
+                "fullyHighlighted": true,
+                "matchedWords": [
+                  "gm"
+                ]
+              },
+              {
+                "value": "convert",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "identify",
+                "matchLevel": "none",
+                "matchedWords": []
+              },
+              {
+                "value": "compare",
+                "matchLevel": "none",
+                "matchedWords": []
+              }
+            ],
+            "owners": [
+              {
+                "name": {
+                  "value": "jongleberry",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              },
+              {
+                "name": {
+                  "value": "rwky",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              },
+              {
+                "name": {
+                  "value": "fragphace",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              },
+              {
+                "name": {
+                  "value": "aaron",
+                  "matchLevel": "none",
+                  "matchedWords": []
+                }
+              }
+            ]
+          },
+          "types": "// Type definitions for gm 1.17\n// Project: https://github.com/aheckmann/gm\n// Definitions by: Joel Spadin <https://github.com/ChaosinaCan>, Maarten van Vliet <https://github.com/maartenvanvliet>\n// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped\n\n/// <reference types=\"node\"/>\n\nimport stream = require('stream');\n\ndeclare function m(stream: NodeJS.ReadableStream | Buffer | string, image?: string): m.State;\ndeclare function m(width: number, height: number, color?: string): m.State;\n\ndeclare namespace m {\n    interface ClassOptions {\n        imageMagick?: boolean;\n        nativeAutoOrient?: boolean;\n    }\n\n    interface ChannelInfo<T> {\n        Red: T;\n        Green: T;\n        Blue: T;\n    }\n\n    interface CompareOptions {\n        file?: string;\n        highlightColor?: string;\n        highlightStyle?: HighlightStyle;\n        tolerance?: number;\n    }\n\n    interface ColorStatistics {\n        Minimum: string;\n        Maximum: string;\n        Mean: string;\n        'Standard Deviation': string;\n    }\n\n    interface Dimensions {\n        width: number;\n        height: number;\n    }\n\n    interface GetterOptions {\n       bufferStream?: boolean;\n    }\n\n    interface ImageInfo {\n        'Background Color': string;\n        'Border Color': string;\n        'Channel Depths': ChannelInfo<string>;\n        'Channel Statistics': ChannelInfo<ColorStatistics>;\n        Class: string;\n        color: number;\n        Compose: string;\n        Compression: string;\n        depth: number;\n        Depth: string;\n        Dispose: string;\n        Filesize: string;\n        format: string;\n        Format: string;\n        Geometry: string;\n        Interlace: string;\n        Iterations: string;\n        'JPEG-Quality'?: string;\n        'JPEG-Colorspace'?: string;\n        'JPEG-Colorspace-Name'?: string;\n        'JPEG-Sampling-factors'?: string;\n        'Matte Color': string;\n        Orientation: string;\n        'Page geometry': string;\n        path: string;\n\n        'Profile-color'?: string;\n        'Profile-iptc'?: {\n            [key: string]: string;\n        };\n        'Profile-EXIF'?: {\n            [key: string]: string;\n        };\n        'Profile-XMP'?: string;\n        Resolution?: string;\n        size: Dimensions;\n        Signature: string;\n        Software: string;\n        Tainted: string;\n        Type: string;\n    }\n\n    interface State {\n        // Image Operations\n        adjoin(): State;\n        affine(matrix: string): State;\n        antialias(enable: boolean): State;\n        append(image: string, ltr?: boolean): State;\n        authenticate(password: string): State;\n        autoOrient(): State;\n        backdrop(): State;\n        background(color: string): State;\n        bitdepth(bits: number): State;\n        blackThreshold(intensity: number): State;\n        blackThreshold(red: number, green: number, blue: number, opacity?: number): State;\n        bluePrimary(x: number, y: number): State;\n        blur(radius: number, sigma?: number): State;\n        border(width: number, height: number): State;\n        borderColor(color: string): State;\n        box(color: string): State;\n        channel(type: NamedColor | string): State;\n        charcoal(factor: number): State;\n        chop(width: number, height: number, x?: number, y?: number): State;\n        clip(): State;\n        coalesce(): State;\n        colorize(red: number, green: number, blue: number): State;\n        colorMap(type: 'shared' | 'private' | string): State;\n        colors(colors: number): State;\n        colorspace(space: ColorSpace | string): State;\n        compose(operator: ComposeOperator | string): State;\n        compress(type: CompressionType | string): State;\n        contrast(multiplier: number): State;\n        convolve(kernel: string): State;\n        createDirectories(): State;\n        crop(width: number, height: number, x?: number, y?: number, percent?: boolean): State;\n        cycle(amount: number): State;\n        deconstruct(): State;\n        define(): State;\n        delay(milliseconds: number): State;\n        density(width: number, height: number): State;\n        despeckle(): State;\n        displace(horizontal: number, vertical: number): State;\n        display(xServer: string): State;\n        dispose(method: DisposeMethod | string): State;\n        dissolve(percent: number): State;\n        dither(enable?: boolean): State;\n        edge(radius?: number): State;\n        emboss(radius?: number): State;\n        encoding(encoding: Encoding | string): State;\n        endian(type: EndianType | string): State;\n        enhance(): State;\n        equalize(): State;\n        extent(width: number, height: number, options?: string): State;\n        file(filename: string): State;\n        filter(type: FilterType | string): State;\n        flatten(): State;\n        flip(): State;\n        flop(): State;\n        foreground(color: string): State;\n        frame(width: number, height: number, outerBevelWidth: number, outBevelHeight: number): State;\n        fuzz(distance: number, percent?: boolean): State;\n        gamma(r: number, g: number, b: number): State;\n        gaussian(radius: number, sigma?: number): State;\n        geometry(width: number, height?: number, option?: ResizeOption): State;\n        geometry(geometry: string): State;\n        greenPrimary(x: number, y: number): State;\n        gravity(direction: GravityDirection | string): State;\n        highlightColor(color: string): State;\n        highlightStyle(style: HighlightStyle | string): State;\n        iconGeometry(geometry: string): State;\n        implode(factor?: number): State;\n        intent(type: IntentType | string): State;\n        interlace(type: InterlaceType | string): State;\n        label(name: string): State;\n        lat(width: number, height: number, offset: number, percent?: boolean): State;\n        level(blackPoint: number, gamma: number, whitePoint: number, percent?: boolean): State;\n        limit(type: LimitType | string, val: string): State;\n        list(type: ListType | string): State;\n        log(format: string): State;\n        loop(iterations: number): State;\n        lower(width: number, height: number): State;\n        magnify(factor: number): State;\n        map(filename: string): State;\n        mask(filename: string): State;\n        matte(): State;\n        matteColor(color: string): State;\n        maximumError(limit: number): State;\n        median(radius?: number): State;\n        minify(factor: number): State;\n        mode(mode: OperationMode | string): State;\n        modulate(b: number, s: number, h: number): State;\n        monitor(): State;\n        monochrome(): State;\n        morph(otherImg: string | string[], outName: string, callback?: WriteCallback): State;\n        mosaic(): State;\n        motionBlur(radius: number, sigma?: number, angle?: number): State;\n        name(): State;\n        negative(): State;\n        noise(type: NoiseType | string | number): State;\n        noop(): State;\n        normalize(): State;\n        opaque(color: string): State;\n        operator(channel: string, operator: ChannelOperator | string, rvalue: number, percent?: boolean): State;\n        orderedDither(channelType: ChannelType | string, NxN: string): State;\n        outputDirectory(directory: string): State;\n        page(width: number, height: number, arg?: '%' | '!' | '<' | '>' |string): State;\n        pause(seconds: number): State;\n        pen(color: string): State;\n        ping(): State;\n        pointSize(size: number): State;\n        noProfile(): State;\n        preview(type: PreviewType | string): State;\n        paint(radius: number): State;\n        process(command: string): State;\n        profile(filename: string): State;\n        progress(): State;\n        randomThreshold(channelType: ChannelType, LOWxHIGH: string): State;\n        quality(level: number): State;\n        raise(width: number, height: number): State;\n        recolor(matrix: string): State;\n        redPrimary(x: number, y: number): State;\n        region(width: number, height: number, x?: number, y?: number): State;\n        remote(): State;\n        render(): State;\n        repage(reset: '+' | string): State;\n        repage(width: number, height: number, xoff: number, yoff: number, arg?: string): State;\n        sample(geometry: string): State;\n        samplingFactor(horizontalFactor: number, verticalFactor: number): State;\n        rawSize(width: number, height: number, offset?: number): State;\n        resample(horizontal: number, vertical: number): State;\n        resize(width: number, height: number, option: ResizeOption): State;\n        resize(width: number, height?: number, option?: ResizeOption): State;\n        roll(horizontal: number, vertical: number): State;\n        rotate(backgroundColor: string, degrees: number): State;\n        scene(index: number): State;\n        scenes(start: number, end: number): State;\n        scale(width: number, height: number): State;\n        screen(): State;\n        segment(clustherThreshold: number, smoothingThreshold: number): State;\n        sepia(): State;\n        set(attribute: string, value: string): State;\n        setFormat(format: string): State;\n        shade(azimuth: number, elevation: number): State;\n        shadow(radius: number, sigma?: number): State;\n        sharedMemory(): State;\n        shave(width: number, height: number, percent?: boolean): State;\n        sharpen(radius: number, sigma?: number): State;\n        shear(xDegrees: number, yDegress: number): State;\n        silent(): State;\n        snaps(count: number): State;\n        solarize(threshold: number): State;\n        spread(amount: number): State;\n        stegano(offset: number): State;\n        stereo(): State;\n        strip(): State;\n        swirl(degrees: number): State;\n        textFont(font: string): State;\n        threshold(value: number, percent?: boolean): State;\n        thumb(width: number, height: number, outName: string, callback: WriteCallback): State;\n        thumb(width: number, height: number, outName: string, quality: number, callback: WriteCallback): State;\n        thumb(width: number, height: number, outName: string, quality: number, align: 'topleft' | 'center' | string, callback: WriteCallback): State;\n        tile(filename: string): State;\n        title(title: string): State;\n        transform(color: string): State;\n        transparent(color: string): State;\n        treeDepth(depth: number): State;\n        trim(): State;\n        type(type: ImageType | string): State;\n        update(seconds: number): State;\n        units(type: UnitType | string): State;\n        unsharp(radius: number, sigma?: number, amount?: number, threshold?: number): State;\n        usePixmap(): State;\n        view(): State;\n        virtualPixel(method: VirtualPixelMethod | string): State;\n        visual(type: VisualType | string): State;\n        watermark(brightness: number, saturation: number): State;\n        wave(amplitude: number, wavelength: number): State;\n        whitePoint(x: number, y: number): State;\n        whiteThreshold(intensity: number): State;\n        whiteThreshold(red: number, green: number, blue: number, opacity?: number): State;\n        window(id: string): State;\n        windowGroup(): State;\n\n        // Getters\n        color(callback: GetterCallback<number>): State;\n        color(opts: GetterOptions, callback: GetterCallback<number>): State;\n        depth(callback: GetterCallback<number>): State;\n        depth(opts: GetterOptions, callback: GetterCallback<number>): State;\n        filesize(callback: GetterCallback<string>): State;\n        filesize(opts: GetterOptions, callback: GetterCallback<string>): State;\n        format(callback: GetterCallback<string>): State;\n        format(opts: GetterOptions, callback: GetterCallback<string>): State;\n        identify(callback: GetterCallback<ImageInfo>): State;\n        identify(opts: GetterOptions, callback: GetterCallback<ImageInfo>): State;\n        res(callback: GetterCallback<string>): State;\n        res(opts: GetterOptions, callback: GetterCallback<string>): State;\n        size(callback: GetterCallback<Dimensions>): State;\n        size(opts: GetterOptions, callback: GetterCallback<Dimensions>): State;\n        orientation(callback: GetterCallback<string>): State;\n        orientation(opts: GetterOptions, callback: GetterCallback<string>): State;\n\n        // Drawing Operations\n        draw(args: string): State;\n        drawArc(x0: number, y0: number, x1: number, y1: number, r0: number, r1: number): State;\n        drawBezier(x0: number, y0: number, x1: number, y1: number, x2?: number, y2?: number, ...coords: number[]): State;\n        drawCircle(x0: number, y0: number, x1: number, y1: number): State;\n        drawEllipse(x0: number, y0: number, rx: number, ry: number, a0: number, a1: number): State;\n        drawLine(x0: number, y0: number, x1: number, y1: number): State;\n        drawPoint(x: number, y: number): State;\n        drawPolygon(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, ...coords: number[]): State;\n        drawPolyline(x0: number, y0: number, x1: number, y1: number, x2: number, y2: number, ...coords: number[]): State;\n        drawRectangle(x0: number, y0: number, x1: number, y1: number, wc?: number, hc?: number): State;\n        drawText(x: number, y: number, text: string, gravity?: GravityDirection | string): State;\n        fill(color: string): State;\n        font(name: string, size?: number): State;\n        fontSize(size: number): State;\n        stroke(color: string, width?: number): State;\n        strokeWidth(width: number): State;\n        setDraw(property: SetDrawProperty | string, x: number, y: number, method: SetDrawMethod | string): State;\n\n        // Commands\n        stream(callback?: WriteCallback): stream.PassThrough;\n        stream(format: string, callback?: WriteCallback): stream.PassThrough;\n        toBuffer(callback: (err: Error, buffer: Buffer) => any): stream.PassThrough;\n        toBuffer(format: string, callback: (err: Error, buffer: Buffer) => any): stream.PassThrough;\n        write(filename: string, callback: WriteCallback): void;\n    }\n\n    interface SubClass {\n        (image: string): State;\n        (stream: NodeJS.ReadableStream | Buffer, image?: string): State;\n        (width: number, height: number, color?: string): State;\n    }\n\n    function compare(filename1: string, filename2: string, callback: CompareCallback): void;\n    function compare(filename1: string, filename2: string, options: CompareOptions | number, callback: CompareCallback): void;\n\n    function subClass(options: ClassOptions): SubClass;\n\n    type ChannelOperator = 'Add'\n        | 'And'\n        | 'Assign'\n        | 'Depth'\n        | 'Divide'\n        | 'Gamma'\n        | 'Negate'\n        | 'LShift'\n        | 'Log'\n        | 'Max'\n        | 'Min'\n        | 'Multiply'\n        | 'Or'\n        | 'Pow'\n        | 'RShift'\n        | 'Subtract'\n        | 'Threshold'\n        | 'Threshold-White'\n        | 'Threshold-White-Negate'\n        | 'Threshold-Black'\n        | 'Threshold-Black-Negate'\n        | 'Xor'\n        | 'Noise-Gaussian'\n        | 'Noise-Impulse'\n        | 'Noise-Laplacian'\n        | 'Noise-Multiplicative'\n        | 'Noise-Poisson'\n        | 'Noise-Random'\n        | 'Noise-Uniform';\n\n    type ChannelType = 'All'\n        | 'Intensity'\n        | 'Red'\n        | 'Green'\n        | 'Blue'\n        | 'Cyan'\n        | 'Magenta'\n        | 'Yellow'\n        | 'Black'\n        | 'Opacity';\n\n    type ColorSpace = 'CineonLog'\n        | 'CMYK'\n        | 'GRAY'\n        | 'HSL'\n        | 'HSB'\n        | 'OHTA'\n        | 'RGB'\n        | 'Rec601Luma'\n        | 'Rec709Luma'\n        | 'Rec601YCbCr'\n        | 'Rec709YCbCr'\n        | 'Transparent'\n        | 'XYZ'\n        | 'YCbCr'\n        | 'YIQ'\n        | 'YPbPr'\n        | 'YUV';\n\n    type CompareCallback = (err: Error, isEqual: boolean, equality: number, raw: number) => any;\n\n    type ComposeOperator = 'Over'\n        | 'In'\n        | 'Out'\n        | 'Atop'\n        | 'Xor'\n        | 'Plus'\n        | 'Minus'\n        | 'Add'\n        | 'Subtract'\n        | 'Difference'\n        | 'Divide'\n        | 'Multiply'\n        | 'Bumpmap'\n        | 'Copy'\n        | 'CopyRed'\n        | 'CopyGreen'\n        | 'CopyBlue'\n        | 'CopyOpacity'\n        | 'CopyCyan'\n        | 'CopyMagenta'\n        | 'CopyYellow'\n        | 'CopyBlack';\n\n    type CompressionType = 'None'\n        | 'BZip'\n        | 'Fax'\n        | 'Group4'\n        | 'JPEG'\n        | 'Lossless'\n        | 'LZW'\n        | 'RLE'\n        | 'Zip'\n        | 'LZMA';\n\n    type DisposeMethod = 'Undefined'\n        | 'None'\n        | 'Background'\n        | 'Previous';\n\n    type Encoding = 'AdobeCustom'\n        | 'AdobeExpert'\n        | 'AdobeStandard'\n        | 'AppleRoman'\n        | 'BIG5'\n        | 'GB2312'\n        | 'Latin 2'\n        | 'None'\n        | 'SJIScode'\n        | 'Symbol'\n        | 'Unicode'\n        | 'Wansung';\n\n    type EndianType = 'MSB'\n        | 'LSB'\n        | 'Native';\n\n    type FilterType = 'Point'\n        | 'Box'\n        | 'Triangle'\n        | 'Hermite'\n        | 'Hanning'\n        | 'Hamming'\n        | 'Blackman'\n        | 'Gaussian'\n        | 'Quadratic'\n        | 'Cubic'\n        | 'Catrom'\n        | 'Mitchell'\n        | 'Lanczos'\n        | 'Bessel'\n        | 'Sinc';\n\n    type GetterCallback<T> = (err: Error, value: T) => any;\n\n    type GravityDirection = 'NorthWest'\n        | 'North'\n        | 'NorthEast'\n        | 'West'\n        | 'Center'\n        | 'East'\n        | 'SouthWest'\n        | 'South'\n        | 'SouthEast';\n\n    type HighlightStyle = 'Assign'\n        | 'Threshold'\n        | 'Tint'\n        | 'XOR';\n\n    type ImageType = 'Bilevel'\n        | 'Grayscale'\n        | 'Palette'\n        | 'PaletteMatte'\n        | 'TrueColor'\n        | 'TrueColorMatte'\n        | 'ColorSeparation'\n        | 'ColorSeparationMatte'\n        | 'Optimize';\n\n    type IntentType = 'Absolute'\n        | 'Perceptual'\n        | 'Relative'\n        | 'Saturation';\n\n    type InterlaceType = 'None'\n        | 'Line'\n        | 'Plane'\n        | 'Partition';\n\n    type LimitType = 'disk'\n        | 'file'\n        | 'map'\n        | 'memory'\n        | 'pixels'\n        | 'threads';\n\n    type ListType = 'Color'\n        | 'Delegate'\n        | 'Format'\n        | 'Magic'\n        | 'Module'\n        | 'Resource'\n        | 'Type';\n\n    type NamedColor = 'Red'\n        | 'Green'\n        | 'Blue'\n        | 'Opacity'\n        | 'Matte'\n        | 'Cyan'\n        | 'Magenta'\n        | 'Yellow'\n        | 'Black'\n        | 'Gray';\n\n    type NoiseType = 'uniform'\n        | 'gaussian'\n        | 'multiplicative'\n        | 'impulse'\n        | 'laplacian'\n        | 'poisson';\n\n    type OperationMode = 'frame'\n        | 'unframe'\n        | 'concatenate';\n\n    type PreviewType = 'Rotate'\n        | 'Shear'\n        | 'Roll'\n        | 'Hue'\n        | 'Saturation'\n        | 'Brightness'\n        | 'Gamma'\n        | 'Spiff'\n        | 'Dull'\n        | 'Grayscale'\n        | 'Quantize'\n        | 'Despeckle'\n        | 'ReduceNoise'\n        | 'AddNoise'\n        | 'Sharpen'\n        | 'Blur'\n        | 'Threshold'\n        | 'EdgeDetect'\n        | 'Spread'\n        | 'Shade'\n        | 'Raise'\n        | 'Segment'\n        | 'Solarize'\n        | 'Swirl'\n        | 'Implode'\n        | 'Wave'\n        | 'OilPaint'\n        | 'CharcoalDrawing'\n        | 'JPEG';\n\n    type ResizeOption = '%' /** Width and height are specified in percents */\n        | '@' /** Specify maximum area in pixels */\n        | '!' /** Ignore aspect ratio */\n        | '^' /** Width and height are minimum values */\n        | '<' /** Change dimensions only if image is smaller than width or height */\n        | '>'; /** Change dimensions only if image is larger than width or height */\n\n    type SetDrawMethod = 'point'\n        | 'replace'\n        | 'floodfill'\n        | 'filltoborder'\n        | 'reset';\n\n    type SetDrawProperty = 'color' | 'matte';\n\n    type UnitType = 'Undefined'\n        | 'PixelsPerInch'\n        | 'PixelsPerCentimeter';\n\n    type VirtualPixelMethod = 'Constant'\n        | 'Edge'\n        | 'Mirror'\n        | 'Tile';\n\n    type VisualType = 'StaticGray'\n        | 'GrayScale'\n        | 'StaticColor'\n        | 'PseudoColor'\n        | 'TrueColor'\n        | 'DirectColor'\n        | 'default';\n\n    type WriteCallback = (err: Error, stdout: string, stderr: string, cmd: string) => any;\n}\n\nexport = m;\n"
+        }
+      }
+    },
+    "changeExistingProject": true,
+    "additionalFiles": [],
+    "lambdaId": "702971c8-fa81-4c9f-9935-f46156b62d1d"
+  },
+  "PROJECT_META": {
+    "projectName": "s3-thumbnail-generator",
+    "projectDescription": "thumbsup",
+    "projectVersion": "1.0.0",
+    "repoName": "s3-thumbnail-generator",
+    "repoUrl": "https://github.com/slappforge/s3-thumbnail-generator",
+    "lastSave": 1517556635173,
+    "projectRegion": "us-east-1"
+  }
+}

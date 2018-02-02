@@ -1,0 +1,10 @@
+{
+  "name": "s3-thumbnail-generator",
+  "version": "1.0.0",
+  "dependencies": {
+    "aws-sdk": "2.176.0",
+    "@slappforge/slappforge-sdk": "0.0.3",
+    "async": "2.6.0",
+    "gm": "1.23.1"
+  }
+}
