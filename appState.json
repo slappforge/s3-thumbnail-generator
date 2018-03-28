@@ -23,21 +23,6 @@
         "isRemovable": true,
         "filePath": "s3-thumbnail-generator/handler.js",
         "code": "/*\n * Original source: https://docs.aws.amazon.com/lambda/latest/dg/with-s3-example-deployment-pkg.html\n * Retrieved on:    2018-01-19\n */\n\n// Dependencies\nlet AWS = require('aws-sdk');\nlet async = require('async');\nlet util = require('util');\n// Enable ImageMagick integration.\nlet gm = require('gm').subClass({ imageMagick: true });\n\n// Get reference to S3 client.\nconst s3 = new AWS.S3();\n\n// Constants\nconst MAX_WIDTH = 100;\nconst MAX_HEIGHT = 100;\n\nexports.handler = function (event, context, callback) {\n\n    // Read options from the event.\n    console.log(\"Reading options from event:\\n\", util.inspect(event, { depth: 5 }));\n\n    // Object key may have spaces or unicode non-ASCII characters.\n    let srcKey = decodeURIComponent(event.Records[0].s3.object.key.replace(/\\+/g, \" \"));\n    let dstKey = \"thumb-\" + srcKey;\n\n    // Infer the image type.\n    let typeMatch = srcKey.match(/\\.([^.]*)$/);\n    if (!typeMatch) {\n        callback(\"Could not determine the image type.\");\n        return;\n    }\n    let imageType = typeMatch[1];\n    if (imageType != \"jpg\" && imageType != \"png\") {\n        callback(`Unsupported image type: ${imageType}`);\n        return;\n    }\n\n    // Download the image from S3, transform, and upload under new key.\n    async.waterfall([\n            function download(next) {\n                // Download the image from S3 into a buffer.\n                s3.getObject({\n                    'Bucket': \"sigma-s3-thumb-input\",\n                    'Key': srcKey\n                }, next);\n            },\n            function transform(response, next) {\n                gm(response.Body).size(function (err, size) {\n                    // Infer the scaling factor to avoid stretching the image unnaturally.\n                    let scalingFactor = Math.min(\n                        MAX_WIDTH / size.width,\n                        MAX_HEIGHT / size.height\n                    );\n                    let width = scalingFactor * size.width;\n                    let height = scalingFactor * size.height;\n\n                    // Transform the image buffer in memory.\n                    this.resize(width, height)\n                        .toBuffer(imageType, function (err, buffer) {\n                            if (err) {\n                                next(err);\n                            } else {\n                                next(null, response.ContentType, buffer);\n                            }\n                        });\n                });\n            },\n            function upload(contentType, data, next) {\n                // Stream the transformed image to a different S3 bucket.\n                s3.putObject({\n                    \"Body\": data,\n                    \"Bucket\": \"sigma-s3-thumb-output\",\n                    \"Key\": dstKey,\n                    \"ACL\": \"public-read\",\n                    \"Metadata\": {\n                        \"Content-Type\": contentType\n                    }\n                }, next);\n            }\n        ], function (err) {\n            let msg;\n            if (err) {\n                msg = `Unable to resize sigma-s3-thumb-input/${srcKey} and upload to sigma-s3-thumb-output/${dstKey} due to an error: ${err}`;\n                console.error(msg);\n            } else {\n                msg = `Successfully resized sigma-s3-thumb-input/${srcKey} and uploaded to sigma-s3-thumb-output/${dstKey}`;\n                console.log(msg);\n            }\n            callback(err, msg);\n        }\n    );\n};\n",
-        "resources": [
-          "s3sigmaS3ThumbInput",
-          "s3sigmaS3ThumbInput",
-          "s3apigKineProxy",
-          "s3sigmaS3ThumbInput",
-          "s3sigmaS3ThumbOutput",
-          "s3sigmaS3ThumbOutput",
-          "s3sigmaS3ThumbOutput",
-          "s3sigmaS3ThumbInput",
-          "s3sigmaS3ThumbOutput",
-          "s3sigmaS3ThumbOutput",
-          "s3sigmaS3ThumbInput",
-          "s3sigmaS3ThumbInput",
-          "s3sigmaS3ThumbOutput"
-        ],
         "triggers": [
           {
             "resourceName": "s3sigmaS3ThumbInput",
@@ -56,7 +41,7 @@
             }
           }
         ],
-        "version": 92
+        "version": 1
       }
     },
     "rootNode": "5e54d49e-8477-4f74-b2fb-883f1c69b7b8",
@@ -75,32 +60,7 @@
             "name": "sigma-s3-thumb-input"
           }
         },
-        "globallyEditable": false,
-        "usage": {
-          "702971c8-fa81-4c9f-9935-f46156b62d1d": {
-            "operations": {
-              "getObject": [
-                {
-                  "Bucket": "sigma-s3-thumb-input",
-                  "Key": "@{srcKey}"
-                }
-              ]
-            },
-            "occurrence": 3,
-            "triggers": [
-              {
-                "type": "s3:ObjectCreated:*",
-                "keyPrefix": "",
-                "keySuffix": ".png"
-              },
-              {
-                "type": "s3:ObjectCreated:*",
-                "keyPrefix": "",
-                "keySuffix": ".jpg"
-              }
-            ]
-          }
-        }
+        "globallyEditable": false
       },
       "s3sigmaS3ThumbOutput": {
         "name": "s3sigmaS3ThumbOutput",
@@ -112,26 +72,7 @@
             "name": "sigma-s3-thumb-output"
           }
         },
-        "globallyEditable": false,
-        "usage": {
-          "702971c8-fa81-4c9f-9935-f46156b62d1d": {
-            "operations": {
-              "putObject": [
-                {
-                  "Body": "@{data}",
-                  "Bucket": "sigma-s3-thumb-output",
-                  "Key": "@{dstKey}",
-                  "ACL": "public-read",
-                  "Metadata": {
-                    "Content-Type": "@{contentType}"
-                  }
-                }
-              ]
-            },
-            "occurrence": 1,
-            "triggers": []
-          }
-        }
+        "globallyEditable": false
       }
     },
     "packageJSON": {
@@ -739,17 +680,24 @@
         }
       }
     },
-    "changeExistingProject": true,
     "additionalFiles": [],
-    "lambdaId": "702971c8-fa81-4c9f-9935-f46156b62d1d"
+    "lambdaId": "702971c8-fa81-4c9f-9935-f46156b62d1d",
+    "envVariables": [
+      {
+        "lambdaId": "all",
+        "varKey": "SIGMA_AWS_ACC_ID",
+        "varValue": "",
+        "editable": false
+      }
+    ]
   },
   "PROJECT_META": {
     "projectName": "s3-thumbnail-generator",
     "projectDescription": "thumbsup",
     "projectVersion": "1.0.0",
+    "projectRegion": "us-east-1",
     "repoName": "s3-thumbnail-generator",
-    "repoUrl": "https://github.com/slappforge/s3-thumbnail-generator",
-    "lastSave": 1517556635173,
-    "projectRegion": "us-east-1"
+    "repoUrl": "https://github.com/janakaud/s3-thumbnail-generator",
+    "lastSave": 1522220203570
   }
 }
